@@ -1,0 +1,19 @@
+{
+  "name": "icebreaker-ai-dashboard",
+  "version": "1.0.0",
+  "description": "Icebreaker Daily Report Analyzer - Analyze WhatsApp delivery reports using AI",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.20.1",
+    "dotenv": "^16.3.1"
+  },
+  "keywords": ["icebreaker", "dashboard", "ai", "delivery", "analysis"],
+  "author": "",
+  "license": "ISC"
+} 
