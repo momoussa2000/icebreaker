@@ -34,69 +34,132 @@ function extractPlanClients(planText) {
   const clients = [];
   const lines = planText.split('\n');
   
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    if (trimmedLine && 
-        !trimmedLine.includes('اسم العميل') && 
-        !trimmedLine.includes('Client Name') &&
-        !trimmedLine.includes('Comment') && 
-        !trimmedLine.includes('اجمالي') &&
-        !trimmedLine.includes('Total') &&
-        !trimmedLine.includes('3 KG') &&
-        !trimmedLine.includes('5 KG') &&
-        !trimmedLine.includes('V00') &&
-        !trimmedLine.includes('Cup') &&
-        trimmedLine.length > 3) {
+  console.log('Processing plan with', lines.length, 'lines');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Skip empty lines and headers
+    if (!line || 
+        line.includes('اسم العميل') || 
+        line.includes('Client Name') ||
+        line.includes('Comment') || 
+        line.includes('3 KG') ||
+        line.includes('5 KG') ||
+        line.includes('V00') ||
+        line.includes('Cup') ||
+        line.includes('3KG') ||
+        line.includes('5KG') ||
+        line.includes('Total') ||
+        line.includes('اجمالي') ||
+        line.length < 3) {
+      continue;
+    }
+    
+    // Parse different formats
+    let clientName = '';
+    let products = { '3KG': 0, '5KG': 0, 'V00': 0, 'Cup': 0 };
+    
+    // Method 1: Tab-separated values (most common in Excel copy-paste)
+    const tabParts = line.split('\t').map(p => p.trim()).filter(p => p !== '');
+    if (tabParts.length >= 2) {
+      clientName = tabParts[0];
       
-      // Try to parse as table row with product columns
-      // Expected format: Client Name | 3KG | 5KG | V00 | Cup | Comment
-      const parts = trimmedLine.split(/[\t\|]+/).map(p => p.trim());
-      
-      if (parts.length >= 2) {
-        let clientName = parts[0].trim();
-        
-        // Clean up client name - remove leading numbers and special chars
-        clientName = clientName.replace(/^[0-9\.\-\s]+/, '').trim();
-        
-        if (clientName.length > 2 && !clientName.match(/^[0-9]+$/)) {
-          // Extract product quantities from columns
-          const products = {
-            '3KG': 0,
-            '5KG': 0,
-            'V00': 0,
-            'Cup': 0
-          };
-          
-          // Try to map columns to products (typical order: name, 3KG, 5KG, V00, Cup)
-          if (parts.length >= 2 && parts[1] && !isNaN(parts[1])) products['3KG'] = parseInt(parts[1]) || 0;
-          if (parts.length >= 3 && parts[2] && !isNaN(parts[2])) products['5KG'] = parseInt(parts[2]) || 0;
-          if (parts.length >= 4 && parts[3] && !isNaN(parts[3])) products['V00'] = parseInt(parts[3]) || 0;
-          if (parts.length >= 5 && parts[4] && !isNaN(parts[4])) products['Cup'] = parseInt(parts[4]) || 0;
-          
-          // Also try space-separated parsing as backup
-          if (Object.values(products).every(v => v === 0)) {
-            const spaceParts = trimmedLine.split(/\s+/);
-            const numbers = spaceParts.filter(p => !isNaN(p) && p.trim() !== '').map(n => parseInt(n));
-            if (numbers.length >= 4) {
-              products['3KG'] = numbers[0] || 0;
-              products['5KG'] = numbers[1] || 0;
-              products['V00'] = numbers[2] || 0;
-              products['Cup'] = numbers[3] || 0;
-            }
-          }
-          
-          clients.push({
-            name: clientName,
-            originalLine: trimmedLine,
-            products: products,
-            totalQuantity: Object.values(products).reduce((sum, qty) => sum + qty, 0),
-            timestamp: new Date().toISOString()
-          });
+      // Look for numbers in the subsequent columns
+      for (let j = 1; j < tabParts.length && j <= 4; j++) {
+        const value = parseInt(tabParts[j]) || 0;
+        if (value > 0) {
+          if (j === 1) products['3KG'] = value;
+          else if (j === 2) products['5KG'] = value;
+          else if (j === 3) products['V00'] = value;
+          else if (j === 4) products['Cup'] = value;
         }
+      }
+    }
+    
+    // Method 2: Pipe-separated values
+    if (!clientName) {
+      const pipeParts = line.split('|').map(p => p.trim()).filter(p => p !== '');
+      if (pipeParts.length >= 2) {
+        clientName = pipeParts[0];
+        for (let j = 1; j < pipeParts.length && j <= 4; j++) {
+          const value = parseInt(pipeParts[j]) || 0;
+          if (value > 0) {
+            if (j === 1) products['3KG'] = value;
+            else if (j === 2) products['5KG'] = value;
+            else if (j === 3) products['V00'] = value;
+            else if (j === 4) products['Cup'] = value;
+          }
+        }
+      }
+    }
+    
+    // Method 3: Space-separated with numbers
+    if (!clientName || Object.values(products).every(v => v === 0)) {
+      const spaceParts = line.split(/\s+/);
+      const textParts = [];
+      const numbers = [];
+      
+      spaceParts.forEach(part => {
+        if (!isNaN(part) && part.trim() !== '' && parseInt(part) > 0) {
+          numbers.push(parseInt(part));
+        } else if (part.trim() !== '' && isNaN(part)) {
+          textParts.push(part);
+        }
+      });
+      
+      if (textParts.length > 0 && numbers.length > 0) {
+        clientName = textParts.join(' ');
+        
+        // Map numbers to products in order
+        if (numbers[0]) products['3KG'] = numbers[0];
+        if (numbers[1]) products['5KG'] = numbers[1];
+        if (numbers[2]) products['V00'] = numbers[2];
+        if (numbers[3]) products['Cup'] = numbers[3];
+      }
+    }
+    
+    // Method 4: Regex approach for mixed Arabic/numbers
+    if (!clientName || Object.values(products).every(v => v === 0)) {
+      // Extract Arabic text as client name
+      const arabicMatch = line.match(/[\u0600-\u06FF\s]+/);
+      if (arabicMatch) {
+        clientName = arabicMatch[0].trim();
+      }
+      
+      // Extract all numbers from the line
+      const numberMatches = line.match(/\b\d+\b/g);
+      if (numberMatches && numberMatches.length > 0) {
+        const nums = numberMatches.map(n => parseInt(n)).filter(n => n > 0);
+        if (nums[0]) products['3KG'] = nums[0];
+        if (nums[1]) products['5KG'] = nums[1];
+        if (nums[2]) products['V00'] = nums[2];
+        if (nums[3]) products['Cup'] = nums[3];
+      }
+    }
+    
+    // Clean up client name
+    if (clientName) {
+      clientName = clientName.replace(/^[0-9\.\-\s]+/, '').trim();
+      clientName = clientName.replace(/[0-9]+$/, '').trim(); // Remove trailing numbers
+      
+      // Only add if we have a valid client name and at least one product
+      const totalQty = Object.values(products).reduce((sum, qty) => sum + qty, 0);
+      if (clientName.length > 1 && !clientName.match(/^[0-9\.\-\s]+$/) && totalQty > 0) {
+        console.log(`Parsed client: ${clientName} - 3KG:${products['3KG']}, 5KG:${products['5KG']}, V00:${products['V00']}, Cup:${products['Cup']}`);
+        
+        clients.push({
+          name: clientName,
+          originalLine: line,
+          products: products,
+          totalQuantity: totalQty,
+          timestamp: new Date().toISOString()
+        });
       }
     }
   }
   
+  console.log(`Extracted ${clients.length} clients with products`);
   return clients;
 }
 
