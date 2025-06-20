@@ -1,20 +1,27 @@
 const fs = require('fs');
 const path = require('path');
+const DEFAULT_CLIENTS = require('./default-clients');
 
 // Use /tmp directory for serverless environments, fallback to current directory for local
 const CLIENTS_FILE = process.env.VERCEL ? '/tmp/client_master_list.json' : 'client_master_list.json';
 
-// Load client list from file
+// Load client list from file or use default embedded clients
 function loadClientList() {
   try {
     if (fs.existsSync(CLIENTS_FILE)) {
       const data = fs.readFileSync(CLIENTS_FILE, 'utf8');
-      return JSON.parse(data);
+      const clients = JSON.parse(data);
+      if (clients && clients.length > 0) {
+        return clients;
+      }
     }
-    return [];
+    
+    // If no file exists or file is empty, use default embedded clients
+    console.log('Using default embedded client list with', DEFAULT_CLIENTS.length, 'clients');
+    return DEFAULT_CLIENTS;
   } catch (error) {
-    console.error('Error loading client list:', error);
-    return [];
+    console.error('Error loading client list, using defaults:', error);
+    return DEFAULT_CLIENTS;
   }
 }
 
