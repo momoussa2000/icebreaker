@@ -382,7 +382,7 @@ function createComparisonPrompt(plan, deliveryText, masterClientList, deliveryDa
     `${client.name}: 3KG:${client.products['3KG']} bags, 5KG:${client.products['5KG']} bags, V00:${client.products['V00']} bags, Cup:${client.products['Cup']} units`
   ).join('\n');
   
-  return `Analyze Icebreaker Egypt delivery vs distribution plan. Use EXACT CLIENT NAMES, not generic labels.
+  return `Analyze Icebreaker Egypt delivery vs distribution plan. Use EXACT CLIENT NAMES and show individual missed clients with their planned quantities.
 
 📅 DELIVERY DATE: ${deliveryDateDisplay}
 📋 PLAN DATE: ${planDateDisplay}
@@ -397,30 +397,36 @@ MASTER CLIENT LIST (for freezer status):
 ${masterClientList.substring(0, 1500)}
 
 OUTPUT REQUIREMENTS:
-1. Use EXACT client names from plan and delivery (Arabic names like سيت الزمالك, ماتيمور, etc.)
-2. Compare each client's planned vs delivered quantities
-3. Show product breakdown for each client: 3KG, 5KG, V00, Cup
-4. Mark freezer clients as (FREEZER) using master list
+1. Use EXACT client names from plan and delivery
+2. For missed clients: Show EACH client as separate bullet point with their planned quantities
+3. Do NOT group missed clients into one string - list them individually
+4. Show product breakdown for each client: 3KG, 5KG, V00, Cup
+5. Mark freezer clients as (FREEZER) using master list
 
-FORMAT:
+REQUIRED FORMAT:
 📊 Plan vs Actual Delivery Comparison
 📅 Date Analysis: ${planDateDisplay === deliveryDateDisplay ? '✅ Same-day analysis' : '⚠️ Cross-date analysis'}
 
 1. Delivered clients:
-- [EXACT CLIENT NAME]: 3KG:[qty], 5KG:[qty], V00:[qty], Cup:[qty]
-- [EXACT CLIENT NAME]: 3KG:[qty], 5KG:[qty], V00:[qty], Cup:[qty]
+- [CLIENT NAME] - [LOCATION]: 3KG:[delivered qty], 5KG:[delivered qty], V00:[delivered qty], Cup:[delivered qty]
+- [CLIENT NAME] - [LOCATION]: 3KG:[delivered qty], 5KG:[delivered qty], V00:[delivered qty], Cup:[delivered qty]
 
 2. Missed/unvisited clients:
-- [EXACT CLIENT NAME]: Planned 3KG:[qty], 5KG:[qty], V00:[qty], Cup:[qty] - NOT delivered
-- [EXACT CLIENT NAME]: Planned 3KG:[qty], 5KG:[qty], V00:[qty], Cup:[qty] - NOT delivered
+- [CLIENT NAME] - [LOCATION]: Planned 3KG:[planned qty], 5KG:[planned qty], V00:[planned qty], Cup:[planned qty] - NOT delivered
+- [CLIENT NAME] - [LOCATION]: Planned 3KG:[planned qty], 5KG:[planned qty], V00:[planned qty], Cup:[planned qty] - NOT delivered
+- [CLIENT NAME] - [LOCATION]: Planned 3KG:[planned qty], 5KG:[planned qty], V00:[planned qty], Cup:[planned qty] - NOT delivered
 
 3. Product fulfillment summary:
-- Total 3KG: [delivered]/[planned] bags
-- Total 5KG: [delivered]/[planned] bags  
-- Total V00: [delivered]/[planned] bags
-- Total Cup: [delivered]/[planned] units
+- Total 3KG: [delivered]/[planned] bags ([percentage]%)
+- Total 5KG: [delivered]/[planned] bags ([percentage]%)
+- Total V00: [delivered]/[planned] bags ([percentage]%)
+- Total Cup: [delivered]/[planned] units ([percentage]%)
 
-CRITICAL: Use the actual Arabic client names from the plan, not "Client 1", "Client 2"!`;
+CRITICAL INSTRUCTIONS:
+- List each missed client on its own line with "- [CLIENT NAME]:"
+- Do NOT use comma-separated lists for missed clients
+- Show the exact planned quantities for each missed client
+- Use the format: "- [CLIENT NAME]: Planned 3KG:X, 5KG:Y, V00:Z, Cup:W - NOT delivered"`;
 }
 
 module.exports = {
