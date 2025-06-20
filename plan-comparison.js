@@ -374,107 +374,53 @@ async function compareDeliveryFromText(deliveryText, masterClientList) {
 
 // Create enhanced prompt for comparison
 function createComparisonPrompt(plan, deliveryText, masterClientList, deliveryDate) {
-  const today = new Date().toDateString();
   const planDateDisplay = plan.date;
   const deliveryDateDisplay = new Date(deliveryDate).toDateString();
   
-  return `You are analyzing Icebreaker Egypt's delivery performance. Compare PLANNED product quantities vs ACTUAL deliveries with detailed product breakdown.
+  // Create a focused list of planned clients with names and quantities
+  const plannedClientsText = plan.clients.map(client => 
+    `${client.name}: 3KG:${client.products['3KG']} bags, 5KG:${client.products['5KG']} bags, V00:${client.products['V00']} bags, Cup:${client.products['Cup']} units`
+  ).join('\n');
+  
+  return `Analyze Icebreaker Egypt delivery vs distribution plan. Use EXACT CLIENT NAMES, not generic labels.
 
-📅 DATE ANALYSIS:
-- Plan Date: ${planDateDisplay}
-- Delivery Date: ${deliveryDateDisplay}
-- Date Match: ${planDateDisplay === deliveryDateDisplay ? '✅ Same day' : '⚠️ Different days'}
+📅 DELIVERY DATE: ${deliveryDateDisplay}
+📋 PLAN DATE: ${planDateDisplay}
 
-📋 DISTRIBUTION PLAN (${plan.clientCount} clients planned):
-PLANNED TOTALS: 3KG: ${plan.totalProducts?.['3KG'] || 0} bags, 5KG: ${plan.totalProducts?.['5KG'] || 0} bags, V00: ${plan.totalProducts?.['V00'] || 0} bags, Cup: ${plan.totalProducts?.['Cup'] || 0} units
+PLANNED CLIENTS WITH QUANTITIES:
+${plannedClientsText}
 
-INDIVIDUAL CLIENT PLANS:
-${plan.clients.map(client => 
-  `- ${client.name}: 3KG:${client.products['3KG']} 5KG:${client.products['5KG']} V00:${client.products['V00']} Cup:${client.products['Cup']} (Total: ${client.totalQuantity})`
-).join('\n')}
-
-📦 ACTUAL DELIVERY REPORT (${deliveryDateDisplay}):
+ACTUAL DELIVERY REPORT:
 ${deliveryText}
 
-🏢 MASTER CLIENT LIST (for freezer status):
-${masterClientList.substring(0, 2000)}
+MASTER CLIENT LIST (for freezer status):
+${masterClientList.substring(0, 1500)}
 
-CRITICAL INSTRUCTIONS: 
-1. Extract EXACT product quantities from both plan and delivery
-2. Match clients by name (account for spelling variations)
-3. Calculate precise fulfillment rates for each product type
-4. Identify freezer clients using the master list
-5. Show EXACT bag counts for every comparison
+OUTPUT REQUIREMENTS:
+1. Use EXACT client names from plan and delivery (Arabic names like سيت الزمالك, ماتيمور, etc.)
+2. Compare each client's planned vs delivered quantities
+3. Show product breakdown for each client: 3KG, 5KG, V00, Cup
+4. Mark freezer clients as (FREEZER) using master list
 
-REQUIRED OUTPUT FORMAT:
+FORMAT:
+📊 Plan vs Actual Delivery Comparison
+📅 Date Analysis: ${planDateDisplay === deliveryDateDisplay ? '✅ Same-day analysis' : '⚠️ Cross-date analysis'}
 
-📊 DELIVERY PERFORMANCE SUMMARY:
-Date: ${deliveryDateDisplay} | Plan Date: ${planDateDisplay}
-${planDateDisplay === deliveryDateDisplay ? '✅ Same-day delivery as planned' : '⚠️ Cross-date analysis (plan from different day)'}
+1. Delivered clients:
+- [EXACT CLIENT NAME]: 3KG:[qty], 5KG:[qty], V00:[qty], Cup:[qty]
+- [EXACT CLIENT NAME]: 3KG:[qty], 5KG:[qty], V00:[qty], Cup:[qty]
 
-✅ PLAN FULFILLED (Planned orders that were delivered):
-For each client that received planned products:
-- Client Name - [FREEZER/REGULAR]
-  PLANNED: 3KG: X bags, 5KG: Y bags, V00: Z bags, Cup: W units
-  DELIVERED: 3KG: X bags, 5KG: Y bags, V00: Z bags, Cup: W units
-  STATUS: ✅ Complete / ⚠️ Partial (specify exact missing quantities)
+2. Missed/unvisited clients:
+- [EXACT CLIENT NAME]: Planned 3KG:[qty], 5KG:[qty], V00:[qty], Cup:[qty] - NOT delivered
+- [EXACT CLIENT NAME]: Planned 3KG:[qty], 5KG:[qty], V00:[qty], Cup:[qty] - NOT delivered
 
-❌ PLAN MISSED (Planned orders NOT delivered):
-For each client that was planned but not delivered:
-- Client Name - [FREEZER/REGULAR] 
-  PLANNED: 3KG: X bags, 5KG: Y bags, V00: Z bags, Cup: W units
-  DELIVERED: Nothing
-  STATUS: ❌ Complete miss
-  IMPACT: Lost revenue: [calculate based on planned quantities]
+3. Product fulfillment summary:
+- Total 3KG: [delivered]/[planned] bags
+- Total 5KG: [delivered]/[planned] bags  
+- Total V00: [delivered]/[planned] bags
+- Total Cup: [delivered]/[planned] units
 
-📦 PARTIAL DELIVERIES (Some products delivered, some missing):
-For each client with incomplete orders:
-- Client Name - [FREEZER/REGULAR]
-  PLANNED: 3KG: X bags, 5KG: Y bags, V00: Z bags, Cup: W units  
-  DELIVERED: 3KG: A bags, 5KG: B bags, V00: C bags, Cup: D units
-  MISSING: 3KG: (X-A) bags, 5KG: (Y-B) bags, V00: (Z-C) bags, Cup: (W-D) units
-  FULFILLMENT: [percentage]%
-
-🔄 UNPLANNED DELIVERIES (Delivered but NOT in plan):
-- Client Name - [FREEZER/REGULAR]
-  DELIVERED: 3KG: X bags, 5KG: Y bags, V00: Z bags, Cup: W units
-  NOTE: Not in original plan - additional sale or emergency delivery
-
-🧊 FREEZER CLIENT ANALYSIS:
-MISSED FREEZER CLIENTS (CRITICAL - require twice weekly):
-- [List freezer clients with missed deliveries and exact quantities missed]
-
-DELIVERED FREEZER CLIENTS:
-- [List freezer clients successfully served with quantities]
-
-📊 DETAILED PERFORMANCE METRICS:
-OVERALL FULFILLMENT:
-- Total planned clients: [COUNT]
-- Total delivered clients: [COUNT]  
-- Plan fulfillment rate: [DELIVERED/PLANNED]%
-
-PRODUCT FULFILLMENT BY TYPE:
-- 3KG bags: [DELIVERED bags]/[PLANNED bags] = [PERCENTAGE]%
-- 5KG bags: [DELIVERED bags]/[PLANNED bags] = [PERCENTAGE]%  
-- V00 bags: [DELIVERED bags]/[PLANNED bags] = [PERCENTAGE]%
-- Cup units: [DELIVERED units]/[PLANNED units] = [PERCENTAGE]%
-
-REVENUE IMPACT:
-- Planned revenue: [estimate based on total planned quantities]
-- Actual revenue: [estimate based on delivered quantities]
-- Lost revenue: [difference]
-
-🚨 URGENT ACTIONS FOR NEXT DELIVERY:
-- [Specific products to deliver to missed freezer clients]
-- [Clients with partial orders needing completion]
-- [Recommended priority order for tomorrow with exact quantities]
-
-⏰ DATE CONSIDERATIONS:
-${planDateDisplay === deliveryDateDisplay ? 
-  '✅ Plan and delivery are same day - excellent planning alignment' : 
-  `⚠️ Plan (${planDateDisplay}) and delivery (${deliveryDateDisplay}) are different days - consider plan timing adjustments`}
-
-BE PRECISE: Show exact bag counts for each product type (3KG, 5KG, V00, Cup) for every client comparison.`;
+CRITICAL: Use the actual Arabic client names from the plan, not "Client 1", "Client 2"!`;
 }
 
 module.exports = {
