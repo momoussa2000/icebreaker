@@ -9,16 +9,20 @@ const { savePlanFromFile, savePlanFromText, compareDeliveryFromFile, compareDeli
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Ensure uploads directory exists
-const uploadsDir = 'uploads';
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
+// Ensure uploads directory exists (with error handling for serverless)
+const uploadsDir = '/tmp/uploads';
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+} catch (error) {
+  console.warn('Could not create uploads directory:', error.message);
 }
 
-// Configure multer for file uploads
+// Configure multer for file uploads (use /tmp for serverless)
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/');
+    cb(null, '/tmp/uploads/');
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -45,6 +49,21 @@ const upload = multer({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  const health = {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    environment: {
+      nodeVersion: process.version,
+      platform: process.platform,
+      hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+      uploadsDir: uploadsDir
+    }
+  };
+  res.json(health);
+});
 
 // Routes
 app.get('/', (req, res) => {

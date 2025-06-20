@@ -1,7 +1,8 @@
 const fs = require('fs');
 const { analyzeTextDirectly, analyzeReport } = require('./analysis');
 
-const PLANS_FILE = 'distribution_plans.json';
+// Use /tmp directory for serverless environments, fallback to current directory for local
+const PLANS_FILE = process.env.VERCEL ? '/tmp/distribution_plans.json' : 'distribution_plans.json';
 
 // Load stored plans
 function loadPlans() {

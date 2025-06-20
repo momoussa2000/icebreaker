@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const CLIENTS_FILE = 'client_master_list.json';
+// Use /tmp directory for serverless environments, fallback to current directory for local
+const CLIENTS_FILE = process.env.VERCEL ? '/tmp/client_master_list.json' : 'client_master_list.json';
 
 // Load client list from file
 function loadClientList() {
