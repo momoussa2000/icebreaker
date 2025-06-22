@@ -1,5 +1,6 @@
 // Vercel serverless function using CommonJS format
 // This should be more compatible with Vercel's Node.js runtime
+// Last updated: 2025-01-22 15:30 - Force cache refresh
 
 module.exports = function handler(req, res) {
   // Set CORS headers
