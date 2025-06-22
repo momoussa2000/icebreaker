@@ -1,108 +1,139 @@
-// Vercel serverless function - self-contained, no imports
-// Last updated: 2025-01-22 15:50 - Async function with proper Vercel format
+// 🚀 FRESH VERCEL SERVERLESS FUNCTION - NO IMPORTS
+// Created: 2025-01-22 16:00 - Force cache busting by creating new file
+// This function is completely self-contained with zero dependencies
 
 module.exports = async function (req, res) {
-  // Set CORS headers
+  console.log('🚀 Fresh serverless function called:', req.method);
+  
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
+  // Health check endpoint
   if (req.method === 'GET') {
-    // Simple test endpoint
     return res.status(200).json({
       success: true,
-      message: 'Delivery comparison API is working',
+      message: '🚀 Fresh API endpoint working perfectly!',
       timestamp: new Date().toISOString(),
-      method: 'POST',
-      expectedBody: {
-        deliveryText: 'string - WhatsApp delivery report text',
-        planText: 'string - Distribution plan text'
-      }
+      version: 'v2.0-fresh',
+      noImports: true,
+      selfContained: true
     });
   }
 
+  // Only allow POST for actual processing
   if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, error: 'Only POST allowed' });
+    return res.status(405).json({ 
+      success: false, 
+      error: 'Only POST requests allowed for processing' 
+    });
   }
 
   try {
-    // Extract data from request body
-    const { deliveryText, planText } = req.body || {};
-    
-    if (!deliveryText || !planText) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required fields: deliveryText and planText'
+    // Parse request body
+    const body = req.body;
+    if (!body) {
+      return res.status(400).json({
+        success: false,
+        error: 'Request body is required'
       });
     }
 
-    // Simple text analysis - count clients
+    const { deliveryText, planText } = body;
+    
+    if (!deliveryText || !planText) {
+      return res.status(400).json({
+        success: false,
+        error: 'Both deliveryText and planText are required',
+        received: {
+          hasDeliveryText: !!deliveryText,
+          hasPlanText: !!planText
+        }
+      });
+    }
+
+    console.log('📊 Processing delivery comparison...');
+
+    // EMBEDDED ANALYSIS LOGIC - NO IMPORTS NEEDED
     const planLines = planText.split('\n').filter(line => line.trim().length > 2);
     const deliveryLines = deliveryText.split('\n').filter(line => line.trim().length > 2);
     
-    let planClients = 0;
-    let deliveredClients = 0;
+    let planClientCount = 0;
+    let deliveredClientCount = 0;
     
-    // Count plan clients (lines with tabs or numbers)
+    // Count planned clients (look for tabs or numbers)
     for (const line of planLines) {
-      if (line.includes('\t') || /\d/.test(line)) {
-        planClients++;
+      const trimmed = line.trim();
+      if (trimmed.includes('\t') || /\d/.test(trimmed)) {
+        planClientCount++;
       }
     }
     
-    // Count delivered clients (Arabic keywords)
+    // Count delivered clients (look for Arabic quantity keywords)
     for (const line of deliveryLines) {
-      if (line.includes('صغير') || line.includes('كبير') || 
-          line.includes('ص') || line.includes('ك')) {
-        deliveredClients++;
+      const trimmed = line.trim();
+      if (trimmed.includes('صغير') || trimmed.includes('كبير') || 
+          trimmed.includes('ص') || trimmed.includes('ك') ||
+          trimmed.includes('كوب')) {
+        deliveredClientCount++;
       }
     }
     
-    const missedClients = Math.max(0, planClients - deliveredClients);
-    const fulfillmentRate = planClients > 0 ? Math.round((deliveredClients / planClients) * 100) : 0;
+    const missedCount = Math.max(0, planClientCount - deliveredClientCount);
+    const successRate = planClientCount > 0 ? Math.round((deliveredClientCount / planClientCount) * 100) : 0;
     
-    const formattedOutput = `📊 Plan vs Actual Delivery Comparison
-📅 Date: ${new Date().toDateString()}
+    const reportDate = new Date().toDateString();
+    
+    const analysisResult = `🚀 Fresh API Delivery Analysis
+📅 Analysis Date: ${reportDate}
 
-✅ DELIVERED CLIENTS (${deliveredClients}):
-• Successfully processed ${deliveredClients} deliveries
+✅ DELIVERED CLIENTS: ${deliveredClientCount}
+❌ MISSED CLIENTS: ${missedCount} 
+📈 SUCCESS RATE: ${successRate}%
 
-❌ MISSED CLIENTS (${missedClients}):
-• ${missedClients} clients may need follow-up
+📊 BREAKDOWN:
+• Total Planned: ${planClientCount}
+• Successfully Delivered: ${deliveredClientCount}
+• Missed/Pending: ${missedCount}
 
-📈 SUMMARY:
-• Planned clients: ${planClients}
-• Delivered: ${deliveredClients}
-• Missed: ${missedClients}
-• Success rate: ${fulfillmentRate}%
+🔥 Generated by self-contained serverless function (no imports!)`;
 
-Note: Simplified analysis for API endpoint.`;
+    console.log('✅ Analysis completed successfully');
 
     return res.status(200).json({
       success: true,
+      version: 'v2.0-fresh',
       result: {
-        formattedOutput,
+        formattedOutput: analysisResult,
         summary: {
-          totalPlanned: planClients,
-          totalDelivered: deliveredClients,
-          missed: missedClients,
-          extras: 0,
-          fulfillmentRate
+          totalPlanned: planClientCount,
+          totalDelivered: deliveredClientCount,
+          missed: missedCount,
+          fulfillmentRate: successRate
         },
-        timestamp: new Date().toISOString()
+        metadata: {
+          timestamp: new Date().toISOString(),
+          planLinesProcessed: planLines.length,
+          deliveryLinesProcessed: deliveryLines.length,
+          selfContained: true,
+          noImports: true
+        }
       }
     });
 
   } catch (error) {
-    console.error('Serverless function error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Internal processing error',
-      details: error.message
+    console.error('❌ Fresh serverless function error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Processing failed in fresh function',
+      details: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 }; 
