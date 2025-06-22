@@ -12,20 +12,69 @@ module.exports = function handler(req, res) {
     return res.status(200).end();
   }
 
+  if (req.method === 'GET') {
+    // Simple test endpoint
+    return res.status(200).json({
+      success: true,
+      message: 'Delivery comparison API is working',
+      timestamp: new Date().toISOString(),
+      method: 'POST',
+      expectedBody: {
+        deliveryText: 'string - WhatsApp delivery report text',
+        planText: 'string - Distribution plan text'
+      }
+    });
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'POST only' });
   }
 
   try {
-    const body = req.body || {};
+    // Better body parsing - handle different scenarios
+    let body;
     
-    const deliveryText = body.deliveryText || '';
-    const planText = body.planText || '';
+    if (req.body) {
+      // Body already parsed by Vercel
+      body = req.body;
+    } else if (req.rawBody) {
+      // Parse raw body if needed
+      try {
+        body = JSON.parse(req.rawBody.toString());
+      } catch (e) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Invalid JSON in request body' 
+        });
+      }
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No request body found' 
+      });
+    }
+    
+    // Extract with fallbacks
+    const deliveryText = body.deliveryText || body.delivery_text || '';
+    const planText = body.planText || body.plan_text || '';
+
+    // Debug logging (will appear in Vercel function logs)
+    console.log('Request received:', {
+      hasBody: !!body,
+      bodyKeys: body ? Object.keys(body) : [],
+      deliveryTextLength: deliveryText.length,
+      planTextLength: planText.length
+    });
 
     if (!deliveryText || !planText) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Both deliveryText and planText are required' 
+        error: 'Both deliveryText and planText are required',
+        received: {
+          deliveryText: !!deliveryText,
+          planText: !!planText,
+          bodyKeys: body ? Object.keys(body) : []
+        }
       });
     }
 
