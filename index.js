@@ -865,14 +865,24 @@ app.post('/save-plan', express.urlencoded({ extended: true }), async (req, res) 
   try {
     const { text } = req.body;
     
+    console.log('📋 Received plan save request');
+    console.log('📋 Text length:', text ? text.length : 'undefined');
+    
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      console.log('❌ Plan text validation failed');
       return res.status(400).json({
         success: false,
         error: 'No valid plan text provided'
       });
     }
 
+    console.log('📋 Saving plan with savePlanFromText...');
     const result = await savePlanFromText(text);
+    console.log('📋 Plan save result:', result.success ? 'SUCCESS' : 'FAILED');
+    if (result.success) {
+      console.log('📋 Plan saved with', result.clientCount, 'clients');
+    }
+    
     res.json(result);
   } catch (error) {
     console.error('Plan save error:', error);

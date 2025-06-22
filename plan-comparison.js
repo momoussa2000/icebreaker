@@ -3,13 +3,47 @@ const path = require('path');
 
 const PLANS_FILE = process.env.VERCEL ? '/tmp/plans.json' : './plans.json';
 
-// Load plans from file
+// In-memory plan storage for serverless environments
+let memoryPlans = {
+  plans: [],
+  lastUpdated: null
+};
+
+// Load plans from file or memory
 function loadPlans() {
   try {
+    // First try to load from memory (for serverless)
+    if (memoryPlans.plans.length > 0) {
+      // Check if plans are still fresh (within 1 hour)
+      const now = new Date();
+      const lastUpdate = new Date(memoryPlans.lastUpdated);
+      const hoursDiff = (now - lastUpdate) / (1000 * 60 * 60);
+      
+      if (hoursDiff < 1) {
+        console.log('📋 Using in-memory plans (age:', Math.round(hoursDiff * 60), 'minutes)');
+        return memoryPlans;
+      } else {
+        console.log('📋 Memory plans expired, clearing...');
+        memoryPlans = { plans: [], lastUpdated: null };
+      }
+    }
+    
+    // Try to load from file
     if (fs.existsSync(PLANS_FILE)) {
       const data = fs.readFileSync(PLANS_FILE, 'utf8');
-      return JSON.parse(data);
+      const fileData = JSON.parse(data);
+      
+      // Update memory with file data
+      memoryPlans = {
+        plans: fileData.plans || [],
+        lastUpdated: new Date().toISOString()
+      };
+      
+      console.log('📋 Loaded plans from file, saved to memory');
+      return memoryPlans;
     }
+    
+    console.log('📋 No plans found in file or memory');
     return { plans: [] };
   } catch (error) {
     console.error('Error loading plans:', error);
@@ -17,10 +51,24 @@ function loadPlans() {
   }
 }
 
-// Save plans to file
+// Save plans to file and memory
 function savePlans(plansData) {
   try {
-    fs.writeFileSync(PLANS_FILE, JSON.stringify(plansData, null, 2));
+    // Save to memory first (always works)
+    memoryPlans = {
+      plans: plansData.plans || [],
+      lastUpdated: new Date().toISOString()
+    };
+    console.log('📋 Plans saved to memory');
+    
+    // Try to save to file (may fail in serverless)
+    try {
+      fs.writeFileSync(PLANS_FILE, JSON.stringify(plansData, null, 2));
+      console.log('📋 Plans also saved to file');
+    } catch (fileError) {
+      console.log('📋 File save failed (serverless environment), using memory only');
+    }
+    
     return true;
   } catch (error) {
     console.error('Error saving plans:', error);
@@ -209,15 +257,27 @@ async function compareDeliveryFromText(deliveryText, masterClientList) {
   try {
     console.log('🚀 Starting NEW 3-step delivery comparison system');
     
+    // Debug: Check plan storage status
+    console.log('🔍 Checking for existing plans...');
+    const plansData = loadPlans();
+    console.log('📋 Plans in storage:', plansData.plans.length);
+    if (plansData.plans.length > 0) {
+      console.log('📋 Latest plan date:', plansData.plans[0].date);
+      console.log('📋 Latest plan clients:', plansData.plans[0].clientCount);
+    }
+    
     // Find the appropriate plan for this delivery date
     const plan = getLatestPlan(); // Use latest plan for now
     
     if (!plan) {
+      console.log('❌ No plan found in storage');
       return {
         success: false,
         error: 'No distribution plan found. Please upload a plan first.'
       };
     }
+    
+    console.log('✅ Found plan with', plan.clients.length, 'clients from', plan.date);
     
     // STEP 1: Get planned clients from saved plan
     const plannedClients = plan.clients.map(client => ({
