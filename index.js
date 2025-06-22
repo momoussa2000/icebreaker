@@ -314,7 +314,7 @@ app.get('/', (req, res) => {
                 // Send as URL-encoded data
                 const formData = new URLSearchParams();
                 formData.append('text', text);
-                await submitAnalysisText('/analyze-text', formData);
+                await submitDeliveryText('/submit-delivery', formData);
             });
 
 
@@ -362,7 +362,7 @@ app.get('/', (req, res) => {
                 }
             }
 
-            async function submitAnalysisText(endpoint, formData) {
+            async function submitDeliveryText(endpoint, formData) {
                 const loadingEl = document.getElementById('loading');
                 const resultEl = document.getElementById('result');
                 
@@ -384,15 +384,15 @@ app.get('/', (req, res) => {
                     if (result.success) {
                         resultEl.innerHTML = \`
                             <div class="result">
-                                <h3>✅ Analysis Complete</h3>
-                                <pre>\${result.analysis}</pre>
-                                <small>Generated at: \${result.timestamp}</small>
+                                <h3>✅ Plan vs Delivery Comparison Complete</h3>
+                                <pre>\${result.comparison}</pre>
+                                <small>Generated at: \${result.timestamp} | Plan ID: \${result.planId}</small>
                             </div>
                         \`;
                     } else {
                         resultEl.innerHTML = \`
                             <div class="result error">
-                                <h3>❌ Analysis Failed</h3>
+                                <h3>❌ Comparison Failed</h3>
                                 <p>\${result.error}</p>
                             </div>
                         \`;
@@ -923,7 +923,7 @@ app.post('/submit-delivery', express.urlencoded({ extended: true }), async (req,
       });
     }
 
-    const masterClientList = getClientListForPrompt();
+    const masterClientList = loadClientList();
     const result = await compareDeliveryFromText(text, masterClientList);
     res.json(result);
   } catch (error) {

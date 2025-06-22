@@ -1,0 +1,85 @@
+{
+  "plans": [
+    {
+      "id": 1750617295136,
+      "date": "Sun Jun 22 2025",
+      "timestamp": "2025-06-22T18:34:55.136Z",
+      "planText": "بيزكس ستي فيو\t10\t5\t0\t0\nبيزكس نيو جيزة\t20\t10\t0\t0\nازكايا\t5\t2\t0\t0\nبير بالم هيلز\t8\t3\t0\t0\nجلامبو\t4\t1\t0\t0\nنوي\t6\t2\t0\t0",
+      "clients": [
+        {
+          "name": "بيزكس ستي فيو",
+          "products": {
+            "3KG": 10,
+            "5KG": 5,
+            "V00": 0,
+            "Cup": 0
+          },
+          "totalQuantity": 15,
+          "timestamp": "2025-06-22T18:34:55.135Z"
+        },
+        {
+          "name": "بيزكس نيو جيزة",
+          "products": {
+            "3KG": 20,
+            "5KG": 10,
+            "V00": 0,
+            "Cup": 0
+          },
+          "totalQuantity": 30,
+          "timestamp": "2025-06-22T18:34:55.136Z"
+        },
+        {
+          "name": "ازكايا",
+          "products": {
+            "3KG": 5,
+            "5KG": 2,
+            "V00": 0,
+            "Cup": 0
+          },
+          "totalQuantity": 7,
+          "timestamp": "2025-06-22T18:34:55.136Z"
+        },
+        {
+          "name": "بير بالم هيلز",
+          "products": {
+            "3KG": 8,
+            "5KG": 3,
+            "V00": 0,
+            "Cup": 0
+          },
+          "totalQuantity": 11,
+          "timestamp": "2025-06-22T18:34:55.136Z"
+        },
+        {
+          "name": "جلامبو",
+          "products": {
+            "3KG": 4,
+            "5KG": 1,
+            "V00": 0,
+            "Cup": 0
+          },
+          "totalQuantity": 5,
+          "timestamp": "2025-06-22T18:34:55.136Z"
+        },
+        {
+          "name": "نوي",
+          "products": {
+            "3KG": 6,
+            "5KG": 2,
+            "V00": 0,
+            "Cup": 0
+          },
+          "totalQuantity": 8,
+          "timestamp": "2025-06-22T18:34:55.136Z"
+        }
+      ],
+      "totalProducts": {
+        "3KG": 53,
+        "5KG": 23,
+        "V00": 0,
+        "Cup": 0
+      },
+      "clientCount": 6
+    }
+  ]
+}

@@ -69,25 +69,39 @@ async function analyzeTextDirectly(text, masterClientList = null) {
       throw new Error('No valid text provided for analysis');
     }
 
-    // Clean and limit text length to avoid token limits
-    const cleanText = text.trim().substring(0, 1500);
-    const prompt = createPrompt(cleanText, masterClientList);
+    // Check if the text is already a complete prompt (contains formatting and instructions)
+    // If it contains "PLAN" and "DELIVERY REPORT" and "REQUIRED OUTPUT FORMAT", treat as complete prompt
+    let prompt;
+    if (text.includes('DISTRIBUTION PLAN') || text.includes('PLANNED CLIENTS') || text.includes('extract client names')) {
+      // This is already a complete prompt from plan comparison
+      prompt = text;
+      console.log('🤖 Using custom comparison prompt');
+    } else {
+      // This is raw delivery text, create a prompt for it
+      const cleanText = text.trim().substring(0, 1500);
+      prompt = createPrompt(cleanText, masterClientList);
+      console.log('📝 Using standard analysis prompt');
+    }
+
+    console.log('📤 SENDING TO AI:', prompt.substring(0, 200), '...');
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-      max_tokens: 800
+      temperature: 0.1, // Lower temperature for more consistent output
+      max_tokens: 1500 // Increase token limit for detailed responses
     });
 
     const analysisResult = completion.choices[0].message.content;
+    
+    console.log('📥 AI RESPONSE:', analysisResult.substring(0, 200), '...');
     
     return {
       success: true,
       analysis: analysisResult,
       timestamp: new Date().toISOString(),
       originalLength: text.length,
-      processedLength: cleanText.length
+      processedLength: prompt.length
     };
   } catch (error) {
     console.error('Analysis error:', error);
