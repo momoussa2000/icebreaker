@@ -175,9 +175,9 @@ app.get('/', (req, res) => {
                     <div>
                         <h4>📸 Upload Plan Image (OCR)</h4>
                         <form id="planImageForm" enctype="multipart/form-data">
-                            <input type="file" name="image" accept="image/*" required>
+                            <input type="file" name="image" accept="image/*" required onchange="handlePlanImageUpload(event)">
                             <br>
-                            <button type="submit" style="background-color: #17a2b8;">OCR Extract Plan</button>
+                            <button type="button" onclick="document.querySelector('#planImageForm input').click()" style="background-color: #17a2b8;">OCR Extract Plan</button>
                         </form>
                     </div>
                     
@@ -256,7 +256,230 @@ app.get('/', (req, res) => {
             <div id="result"></div>
         </div>
 
-        <script>
+        <script type="module">
+            // Import Tesseract.js for client-side OCR
+            import { createWorker } from 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js';
+
+            // Client-side OCR function (same as user's implementation)
+            async function extractTextFromImage(imageFile) {
+                console.log('🔍 Starting client-side OCR extraction...');
+                const worker = await createWorker('eng+ara', 1); // fast mode
+
+                const {
+                    data: { text },
+                } = await worker.recognize(imageFile);
+
+                await worker.terminate();
+                console.log('✅ Client-side OCR extraction complete. Text length:', text.length);
+                return text;
+            }
+
+            // Handle plan image upload with client-side OCR
+            const handlePlanImageUpload = async (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const loadingEl = document.getElementById('loading');
+                const resultEl = document.getElementById('result');
+                
+                loadingEl.innerHTML = '<p>📸 Processing plan image with client-side OCR...</p>';
+                loadingEl.style.display = 'block';
+                resultEl.innerHTML = '';
+
+                try {
+                    const extractedText = await extractTextFromImage(file);
+                    console.log('📝 Plan Extracted Text:', extractedText);
+                    
+                    loadingEl.style.display = 'none';
+                    
+                    // Clean up the extracted text
+                    const cleanedText = extractedText
+                        .split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line.length > 0)
+                        .join('\n');
+
+                    // Validate if it looks like a plan
+                    const lines = cleanedText.split('\n');
+                    const hasNumbers = /\d+/.test(cleanedText);
+                    const hasTabularData = lines.some(line => line.includes('\t') || /\s{3,}/.test(line));
+                    const confidence = hasNumbers && hasTabularData ? 'high' : hasNumbers ? 'medium' : 'low';
+
+                    if (confidence === 'high' || confidence === 'medium') {
+                        // Auto-save the plan
+                        try {
+                            const response = await fetch('/save-plan', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded'
+                                },
+                                body: new URLSearchParams({ text: cleanedText })
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (result.success) {
+                                // Store in localStorage
+                                const planData = {
+                                    id: result.planId,
+                                    date: result.planDate || new Date().toDateString(),
+                                    sessionId: result.sessionId,
+                                    clientCount: result.clientCount,
+                                    timestamp: new Date().toISOString(),
+                                    planText: cleanedText
+                                };
+                                
+                                localStorage.setItem('currentPlan', JSON.stringify(planData));
+                                currentPlanData = planData;
+                                console.log('📋 OCR plan data stored in localStorage:', planData);
+
+                                resultEl.innerHTML = \`
+                                    <div class="result">
+                                        <h3>📸 Client-Side OCR Plan Extraction Complete</h3>
+                                        <p><strong>📋 Confidence:</strong> \${confidence === 'high' ? '✅ High' : '⚠️ Medium'} - Plan detected</p>
+                                        <p><strong>📝 Lines Extracted:</strong> \${lines.length}</p>
+                                        <p><strong>💾 Plan Saved:</strong> ✅ \${result.clientCount} clients</p>
+                                        <p><strong>💾 Storage:</strong> Saved in browser for comparison</p>
+                                        <details>
+                                            <summary>📄 View Extracted Text</summary>
+                                            <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; white-space: pre-wrap;">\${cleanedText}</pre>
+                                        </details>
+                                        <small>Extracted at: \${new Date().toISOString()}</small>
+                                    </div>
+                                \`;
+                            } else {
+                                throw new Error(result.error);
+                            }
+                        } catch (saveError) {
+                            console.error('Plan save error:', saveError);
+                                                         resultEl.innerHTML = \`
+                                <div class="result">
+                                    <h3>📸 OCR Complete - Manual Save Required</h3>
+                                    <p><strong>📋 Confidence:</strong> \${confidence === 'high' ? '✅ High' : '⚠️ Medium'}</p>
+                                    <p><strong>💾 Auto-save failed:</strong> Please copy text below and paste in "Paste Plan Text" form</p>
+                                    <details open>
+                                        <summary>📄 Extracted Text (Copy This)</summary>
+                                        <textarea readonly style="width: 100%; height: 200px; background: #f8f9fa; padding: 10px; border-radius: 5px;">\${cleanedText}</textarea>
+                                    </details>
+                                    <button onclick="copyToPlanForm('\${cleanedText.replace(/'/g, "\\\\'")}')">📋 Copy to Plan Form</button>
+                                </div>
+                            \`;
+                        }
+                    } else {
+                        resultEl.innerHTML = `
+                            <div class="result">
+                                <h3>📸 OCR Complete - Review Required</h3>
+                                <p><strong>📋 Confidence:</strong> ❌ Low - Please review extracted text</p>
+                                <p><strong>📝 Lines Extracted:</strong> ${lines.length}</p>
+                                <p style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">⚠️ Text may not be a valid distribution plan. Please review and edit if needed.</p>
+                                <details open>
+                                    <summary>📄 Extracted Text (Review & Edit)</summary>
+                                    <textarea readonly style="width: 100%; height: 200px; background: #f8f9fa; padding: 10px; border-radius: 5px;">${cleanedText}</textarea>
+                                </details>
+                                <button onclick="copyToPlanForm('${cleanedText.replace(/'/g, "\\'")}')">📋 Copy to Plan Form</button>
+                            </div>
+                        `;
+                    }
+
+                    document.querySelector('#planImageForm').reset();
+
+                } catch (error) {
+                    loadingEl.style.display = 'none';
+                    resultEl.innerHTML = `
+                        <div class="result error">
+                            <h3>❌ Client-Side OCR Failed</h3>
+                            <p>${error.message}</p>
+                        </div>
+                    `;
+                }
+            };
+
+            // Handle delivery image upload with client-side OCR
+            const handleDeliveryImageUpload = async (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const loadingEl = document.getElementById('loading');
+                const resultEl = document.getElementById('result');
+                
+                loadingEl.innerHTML = '<p>📸 Processing delivery image with client-side OCR...</p>';
+                loadingEl.style.display = 'block';
+                resultEl.innerHTML = '';
+
+                try {
+                    const extractedText = await extractTextFromImage(file);
+                    console.log('📝 Delivery Extracted Text:', extractedText);
+                    
+                    loadingEl.style.display = 'none';
+                    
+                    // Clean up the extracted text
+                    const cleanedText = extractedText
+                        .split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line.length > 0)
+                        .join('\n');
+
+                    // Validate if it looks like a delivery report
+                    const arabicPattern = /[\u0600-\u06FF]/;
+                    const quantityPattern = /(صغير|كبير|كوب|فو|ص|ك|\d+)/;
+                    
+                    const hasArabic = arabicPattern.test(cleanedText);
+                    const hasQuantities = quantityPattern.test(cleanedText);
+                    const lines = cleanedText.split('\n');
+                    const confidence = hasArabic && hasQuantities ? 'high' : hasArabic ? 'medium' : 'low';
+
+                    const confidenceIcon = confidence === 'high' ? '✅' : confidence === 'medium' ? '⚠️' : '❌';
+                    const confidenceText = confidence === 'high' ? 'High confidence delivery report detected' :
+                                          confidence === 'medium' ? 'Medium confidence - please review' :
+                                          'Low confidence - manual review required';
+
+                    resultEl.innerHTML = `
+                        <div class="result">
+                            <h3>📸 Client-Side OCR Delivery Extraction Complete</h3>
+                            <p><strong>📱 Confidence:</strong> ${confidenceIcon} ${confidenceText}</p>
+                            <p><strong>📝 Lines Extracted:</strong> ${lines.length}</p>
+                            <p><strong>🔤 Arabic Text:</strong> ${hasArabic ? '✅ Detected' : '❌ Not found'}</p>
+                            <p><strong>📦 Quantities:</strong> ${hasQuantities ? '✅ Detected' : '❌ Not found'}</p>
+                            <details>
+                                <summary>📄 View Extracted Text</summary>
+                                <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; white-space: pre-wrap;">${cleanedText}</pre>
+                            </details>
+                            <div style="margin-top: 15px; padding: 15px; background: #d1ecf1; border-radius: 5px;">
+                                <h4>🎯 Next Step: Compare with Plan</h4>
+                                <p>Click the button below to copy the extracted text to the delivery form for comparison.</p>
+                                <button onclick="copyToDeliveryForm('${cleanedText.replace(/'/g, "\\'")}')">📋 Copy to Delivery Form</button>
+                            </div>
+                            ${confidence === 'low' ? `<p style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">⚠️ Low confidence - please review extracted text for accuracy.</p>` : ''}
+                            <small>Extracted at: ${new Date().toISOString()}</small>
+                        </div>
+                    `;
+
+                    document.querySelector('#deliveryImageForm').reset();
+
+                } catch (error) {
+                    loadingEl.style.display = 'none';
+                    resultEl.innerHTML = `
+                        <div class="result error">
+                            <h3>❌ Client-Side OCR Failed</h3>
+                            <p>${error.message}</p>
+                        </div>
+                    `;
+                }
+            };
+
+            // Helper function to copy OCR text to plan form
+            function copyToPlanForm(text) {
+                const planTextarea = document.querySelector('#planTextForm textarea[name="text"]');
+                if (planTextarea) {
+                    planTextarea.value = text;
+                    planTextarea.scrollIntoView({ behavior: 'smooth' });
+                    planTextarea.focus();
+                }
+            }
+
+            // Store plan data in localStorage for delivery comparison
+            let currentPlanData = null;
+
             // Load client stats on page load
             window.addEventListener('load', async () => {
                 await loadClientStats();
@@ -271,8 +494,10 @@ app.get('/', (req, res) => {
 
             document.getElementById('planImageForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const formData = new FormData(e.target);
-                await submitPlanImage('/upload-plan-image', formData);
+                const fileInput = e.target.querySelector('input[type="file"]');
+                if (fileInput.files && fileInput.files[0]) {
+                    await handlePlanImageUpload({ target: fileInput });
+                }
             });
 
             document.getElementById('planTextForm').addEventListener('submit', async (e) => {
@@ -299,8 +524,10 @@ app.get('/', (req, res) => {
 
             document.getElementById('deliveryImageForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const formData = new FormData(e.target);
-                await submitDeliveryImage('/upload-delivery-image', formData);
+                const fileInput = e.target.querySelector('input[type="file"]');
+                if (fileInput.files && fileInput.files[0]) {
+                    await handleDeliveryImageUpload({ target: fileInput });
+                }
             });
 
             // Load plan data from localStorage on page load
@@ -378,8 +605,8 @@ app.get('/', (req, res) => {
                 await submitDeliveryText('/submit-delivery', formData);
             });
 
-            // Store plan data in localStorage for delivery comparison
-            let currentPlanData = null;
+            // Store session ID globally for delivery comparison
+            let currentSessionId = null;
 
             async function submitPlanText(endpoint, formData) {
                 const loadingEl = document.getElementById('loading');
@@ -955,7 +1182,7 @@ app.post('/import-clients', upload.single('jsonFile'), async (req, res) => {
     if (result.success) {
               res.json({
           success: true,
-          message: `Successfully imported ${result.imported} clients (${result.skipped} duplicates skipped)`
+          message: \`Successfully imported \${result.imported} clients (\${result.skipped} duplicates skipped)\`
         });
     } else {
       res.status(400).json(result);
@@ -1213,7 +1440,7 @@ app.post('/upload-plan-image', upload.single('image'), async (req, res) => {
       planSaved: planResult.success,
       planResult: planResult,
       message: planResult.success ? 
-        `OCR extracted and saved plan with ${planResult.clientCount} clients` : 
+        \`OCR extracted and saved plan with \${planResult.clientCount} clients\` : 
         'OCR extracted text, but plan save failed',
       timestamp: ocrResult.timestamp
     });
