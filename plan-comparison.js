@@ -3,47 +3,66 @@ const path = require('path');
 
 const PLANS_FILE = process.env.VERCEL ? '/tmp/plans.json' : './plans.json';
 
-// In-memory plan storage for serverless environments
-let memoryPlans = {
-  plans: [],
-  lastUpdated: null
-};
+// Session-based plan storage - plans are passed with each request
+let sessionPlans = new Map(); // Session ID -> Plan Data
 
-// Load plans from file or memory
+// Generate unique session ID
+function generateSessionId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+// Store plan in session with expiration
+function storePlanInSession(planData) {
+  const sessionId = generateSessionId();
+  const expiresAt = Date.now() + (60 * 60 * 1000); // 1 hour
+  
+  sessionPlans.set(sessionId, {
+    data: planData,
+    expiresAt: expiresAt
+  });
+  
+  // Clean up expired sessions
+  for (const [id, session] of sessionPlans.entries()) {
+    if (session.expiresAt < Date.now()) {
+      sessionPlans.delete(id);
+    }
+  }
+  
+  console.log('📋 Plan stored in session:', sessionId, 'Expires:', new Date(expiresAt).toLocaleTimeString());
+  return sessionId;
+}
+
+// Retrieve plan from session
+function getPlanFromSession(sessionId) {
+  if (!sessionId) {
+    console.log('❌ No session ID provided');
+    return null;
+  }
+  
+  const session = sessionPlans.get(sessionId);
+  if (!session) {
+    console.log('❌ Session not found:', sessionId);
+    return null;
+  }
+  
+  if (session.expiresAt < Date.now()) {
+    console.log('❌ Session expired:', sessionId);
+    sessionPlans.delete(sessionId);
+    return null;
+  }
+  
+  console.log('✅ Plan retrieved from session:', sessionId);
+  return session.data;
+}
+
+// Legacy functions for backward compatibility
 function loadPlans() {
   try {
-    // First try to load from memory (for serverless)
-    if (memoryPlans.plans.length > 0) {
-      // Check if plans are still fresh (within 1 hour)
-      const now = new Date();
-      const lastUpdate = new Date(memoryPlans.lastUpdated);
-      const hoursDiff = (now - lastUpdate) / (1000 * 60 * 60);
-      
-      if (hoursDiff < 1) {
-        console.log('📋 Using in-memory plans (age:', Math.round(hoursDiff * 60), 'minutes)');
-        return memoryPlans;
-      } else {
-        console.log('📋 Memory plans expired, clearing...');
-        memoryPlans = { plans: [], lastUpdated: null };
-      }
-    }
-    
-    // Try to load from file
     if (fs.existsSync(PLANS_FILE)) {
       const data = fs.readFileSync(PLANS_FILE, 'utf8');
       const fileData = JSON.parse(data);
-      
-      // Update memory with file data
-      memoryPlans = {
-        plans: fileData.plans || [],
-        lastUpdated: new Date().toISOString()
-      };
-      
-      console.log('📋 Loaded plans from file, saved to memory');
-      return memoryPlans;
+      return fileData;
     }
-    
-    console.log('📋 No plans found in file or memory');
     return { plans: [] };
   } catch (error) {
     console.error('Error loading plans:', error);
@@ -51,27 +70,12 @@ function loadPlans() {
   }
 }
 
-// Save plans to file and memory
 function savePlans(plansData) {
   try {
-    // Save to memory first (always works)
-    memoryPlans = {
-      plans: plansData.plans || [],
-      lastUpdated: new Date().toISOString()
-    };
-    console.log('📋 Plans saved to memory');
-    
-    // Try to save to file (may fail in serverless)
-    try {
-      fs.writeFileSync(PLANS_FILE, JSON.stringify(plansData, null, 2));
-      console.log('📋 Plans also saved to file');
-    } catch (fileError) {
-      console.log('📋 File save failed (serverless environment), using memory only');
-    }
-    
+    fs.writeFileSync(PLANS_FILE, JSON.stringify(plansData, null, 2));
     return true;
   } catch (error) {
-    console.error('Error saving plans:', error);
+    console.log('📋 File save failed (serverless environment), using session storage only');
     return false;
   }
 }
@@ -253,31 +257,40 @@ function generateComparisonReport(comparisonResults, planDate, deliveryDate) {
 }
 
 // NEW 3-step comparison function
-async function compareDeliveryFromText(deliveryText, masterClientList) {
+async function compareDeliveryFromText(deliveryText, masterClientList, sessionId = null) {
   try {
     console.log('🚀 Starting NEW 3-step delivery comparison system');
+    console.log('🔍 Session ID provided:', sessionId);
     
-    // Debug: Check plan storage status
-    console.log('🔍 Checking for existing plans...');
-    const plansData = loadPlans();
-    console.log('📋 Plans in storage:', plansData.plans.length);
-    if (plansData.plans.length > 0) {
-      console.log('📋 Latest plan date:', plansData.plans[0].date);
-      console.log('📋 Latest plan clients:', plansData.plans[0].clientCount);
+    // Try to get plan from session first, then fallback to file storage
+    let plan = null;
+    
+    if (sessionId) {
+      plan = getPlanFromSession(sessionId);
+      if (plan) {
+        console.log('✅ Found plan in session with', plan.clients.length, 'clients from', plan.date);
+      }
     }
     
-    // Find the appropriate plan for this delivery date
-    const plan = getLatestPlan(); // Use latest plan for now
+    // Fallback to file storage if no session plan found
+    if (!plan) {
+      console.log('🔍 No session plan found, checking file storage...');
+      const plansData = loadPlans();
+      console.log('📋 Plans in file storage:', plansData.plans.length);
+      
+      if (plansData.plans.length > 0) {
+        plan = plansData.plans[0];
+        console.log('📋 Using plan from file:', plan.date, 'with', plan.clientCount, 'clients');
+      }
+    }
     
     if (!plan) {
-      console.log('❌ No plan found in storage');
+      console.log('❌ No plan found in session or file storage');
       return {
         success: false,
         error: 'No distribution plan found. Please upload a plan first.'
       };
     }
-    
-    console.log('✅ Found plan with', plan.clients.length, 'clients from', plan.date);
     
     // STEP 1: Get planned clients from saved plan
     const plannedClients = plan.clients.map(client => ({
@@ -499,7 +512,6 @@ async function savePlanFromText(planText, planDate = null) {
       return { success: false, error: 'No valid clients found in plan text' };
     }
     
-    const plansData = loadPlans();
     const newPlan = {
       id: Date.now(),
       date: new Date().toDateString(),
@@ -510,27 +522,25 @@ async function savePlanFromText(planText, planDate = null) {
       clientCount: clients.length
     };
     
-    // Add new plan at the beginning
-    plansData.plans.unshift(newPlan);
+    // Store in session and also try to save to file
+    const sessionId = storePlanInSession(newPlan);
     
-    // Keep only last 30 plans
+    // Try to save to file as backup (may fail in serverless)
+    const plansData = loadPlans();
+    plansData.plans.unshift(newPlan);
     if (plansData.plans.length > 30) {
       plansData.plans = plansData.plans.slice(0, 30);
     }
+    savePlans(plansData);
     
-    const saved = savePlans(plansData);
-    
-    if (saved) {
-      console.log(`Plan saved with ${clients.length} clients`);
-      return {
-        success: true,
-        message: `Distribution plan saved successfully for ${newPlan.date}`,
-        planId: newPlan.id,
-        clientCount: clients.length
-      };
-    } else {
-      throw new Error('Failed to save plan to file');
-    }
+    console.log(`Plan saved with ${clients.length} clients, Session ID: ${sessionId}`);
+    return {
+      success: true,
+      message: `Distribution plan saved successfully for ${newPlan.date}`,
+      planId: newPlan.id,
+      sessionId: sessionId,
+      clientCount: clients.length
+    };
   } catch (error) {
     console.error('Error saving plan:', error);
     return {
@@ -575,5 +585,7 @@ module.exports = {
   extractDateFromText,
   calculateTotalProducts,
   parseDeliveryReport,
-  generateComparisonReport
+  generateComparisonReport,
+  storePlanInSession,
+  getPlanFromSession
 };

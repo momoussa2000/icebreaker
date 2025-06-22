@@ -286,6 +286,10 @@ app.get('/', (req, res) => {
                 
                 const formData = new URLSearchParams();
                 formData.append('text', text);
+                if (currentSessionId) {
+                    formData.append('sessionId', currentSessionId);
+                    console.log('📱 Including session ID in delivery request:', currentSessionId);
+                }
                 await submitDeliveryText('/submit-delivery', formData);
             });
 
@@ -314,6 +318,10 @@ app.get('/', (req, res) => {
                 // Send as URL-encoded data
                 const formData = new URLSearchParams();
                 formData.append('text', text);
+                if (currentSessionId) {
+                    formData.append('sessionId', currentSessionId);
+                    console.log('📱 Including session ID in legacy delivery request:', currentSessionId);
+                }
                 await submitDeliveryText('/submit-delivery', formData);
             });
 
@@ -544,6 +552,9 @@ app.get('/', (req, res) => {
                 }
             }
 
+            // Store session ID globally for delivery comparison
+            let currentSessionId = null;
+
             async function submitPlanText(endpoint, formData) {
                 const loadingEl = document.getElementById('loading');
                 const resultEl = document.getElementById('result');
@@ -564,6 +575,10 @@ app.get('/', (req, res) => {
                     loadingEl.style.display = 'none';
 
                     if (result.success) {
+                        // Store session ID for later use in delivery comparison
+                        currentSessionId = result.sessionId;
+                        console.log('📋 Plan saved with session ID:', currentSessionId);
+                        
                         const totalProducts = result.totalProducts || {};
                         const productSummary = Object.entries(totalProducts)
                             .map(([product, count]) => \`\${product}: \${count}\`)
@@ -575,6 +590,7 @@ app.get('/', (req, res) => {
                                 <p><strong>📅 Plan Date:</strong> \${result.planDate || 'Today'}</p>
                                 <p><strong>👥 Clients Planned:</strong> \${result.clientCount}</p>
                                 <p><strong>📦 Total Products:</strong> \${productSummary || 'No products extracted'}</p>
+                                <p><strong>🔑 Session ID:</strong> \${result.sessionId}</p>
                                 <p><em>\${result.message}</em></p>
                                 <small>Saved at: \${result.timestamp}</small>
                             </div>
@@ -924,7 +940,11 @@ app.post('/upload-delivery', upload.single('file'), async (req, res) => {
 
 app.post('/submit-delivery', express.urlencoded({ extended: true }), async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, sessionId } = req.body;
+    
+    console.log('📱 Delivery submission received');
+    console.log('📱 Text length:', text ? text.length : 'undefined');
+    console.log('📱 Session ID:', sessionId || 'not provided');
     
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
       return res.status(400).json({
@@ -934,7 +954,7 @@ app.post('/submit-delivery', express.urlencoded({ extended: true }), async (req,
     }
 
     const masterClientList = loadClientList();
-    const result = await compareDeliveryFromText(text, masterClientList);
+    const result = await compareDeliveryFromText(text, masterClientList, sessionId);
     res.json(result);
   } catch (error) {
     console.error('Delivery comparison error:', error);
