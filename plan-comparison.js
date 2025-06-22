@@ -256,6 +256,249 @@ function generateComparisonReport(comparisonResults, planDate, deliveryDate) {
   return report;
 }
 
+// NEW function that processes plan and delivery together (no server storage needed)
+async function compareDeliveryWithPlan(deliveryText, planText, masterClientList) {
+  try {
+    console.log('🚀 Starting DIRECT plan + delivery comparison (no server storage)');
+    console.log('📋 Plan text length:', planText.length);
+    console.log('📱 Delivery text length:', deliveryText.length);
+    
+    // STEP 1: Parse the plan text directly
+    const planClients = [];
+    const lines = planText.split('\n');
+    
+    for (let line of lines) {
+      line = line.trim();
+      if (!line || line.length < 3) continue;
+      
+      // Parse tab-separated values (Excel copy-paste format)
+      const parts = line.split('\t').map(p => p.trim()).filter(p => p !== '');
+      if (parts.length >= 2) {
+        const clientName = parts[0];
+        const products = {
+          '3KG': parseInt(parts[1]) || 0,
+          '5KG': parseInt(parts[2]) || 0,
+          'V00': parseInt(parts[3]) || 0,
+          'Cup': parseInt(parts[4]) || 0
+        };
+        
+        const totalQty = Object.values(products).reduce((sum, qty) => sum + qty, 0);
+        if (clientName.length > 1 && totalQty > 0) {
+          planClients.push({
+            name: clientName,
+            products: products,
+            totalQuantity: totalQty
+          });
+        }
+      }
+    }
+    
+    console.log('📋 STEP 1 Complete: Parsed', planClients.length, 'planned clients');
+    
+    if (planClients.length === 0) {
+      return {
+        success: false,
+        error: 'No valid clients found in the plan text'
+      };
+    }
+    
+    // Create a mock plan object
+    const plan = {
+      id: Date.now(),
+      date: new Date().toDateString(),
+      clients: planClients,
+      clientCount: planClients.length
+    };
+    
+    // STEP 2: Parse delivery report (reuse existing function)
+    const fulfilledDeliveries = parseDeliveryReport(deliveryText);
+    
+    if (fulfilledDeliveries.length === 0) {
+      return {
+        success: false,
+        error: 'No valid deliveries found in the delivery text'
+      };
+    }
+    
+    // STEP 3: Match planned to delivered using existing logic
+    return await performPlanDeliveryMatching(plan, fulfilledDeliveries, masterClientList);
+    
+  } catch (error) {
+    console.error('Error in direct plan+delivery comparison:', error);
+    return {
+      success: false,
+      error: 'Failed to compare: ' + error.message
+    };
+  }
+}
+
+// Extract the matching logic into a separate function for reuse
+async function performPlanDeliveryMatching(plan, fulfilledDeliveries, masterClientList) {
+  const plannedClients = plan.clients;
+  console.log('🔄 STEP 3: Matching', plannedClients.length, 'planned clients with', fulfilledDeliveries.length, 'deliveries');
+    
+  const comparisonResults = [];
+  const matchedDeliveries = new Set();
+  
+  // Match planned clients to deliveries
+  for (const planned of plannedClients) {
+    let bestMatch = null;
+    let bestScore = 0;
+    let matchIndex = -1;
+    
+    // Find best matching delivery
+    fulfilledDeliveries.forEach((fulfilled, index) => {
+      if (matchedDeliveries.has(index)) return;
+      
+      const plannedName = planned.name.toLowerCase().replace(/\s+/g, '');
+      const fulfilledName = fulfilled.clientName.toLowerCase().replace(/\s+/g, '');
+      
+      let score = 0;
+      if (plannedName === fulfilledName) score = 100;
+      else if (plannedName.includes(fulfilledName) || fulfilledName.includes(plannedName)) score = 80;
+      else if (plannedName.substring(0, 3) === fulfilledName.substring(0, 3)) score = 60;
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = fulfilled;
+        matchIndex = index;
+      }
+    });
+    
+    // Find client in master database
+    const masterClient = masterClientList.find(mc => {
+      const mName = mc.name.toLowerCase().replace(/\s+/g, '');
+      const pName = planned.name.toLowerCase().replace(/\s+/g, '');
+      return mName.includes(pName) || pName.includes(mName) || 
+             mName.substring(0, Math.min(mName.length, pName.length)) === pName.substring(0, Math.min(mName.length, pName.length));
+    });
+    
+    if (bestMatch && bestScore >= 60) {
+      // Client was delivered
+      matchedDeliveries.add(matchIndex);
+      
+      comparisonResults.push({
+        clientName: planned.name,
+        deliveryStatus: 'Delivered',
+        hasFreezr: masterClient ? masterClient.isFreezr : false,
+        zone: masterClient ? masterClient.location : 'Unknown',
+        planned: {
+          '3KG': planned.products['3KG'],
+          '5KG': planned.products['5KG'],
+          'V00': planned.products['V00'],
+          'Cup': planned.products['Cup'],
+          total: planned.totalQuantity
+        },
+        delivered: {
+          '3KG': bestMatch.delivered3KG,
+          '5KG': bestMatch.delivered5KG,
+          'V00': bestMatch.deliveredV00,
+          'Cup': bestMatch.deliveredCup,
+          total: bestMatch.totalDelivered
+        },
+        variance: {
+          '3KG': bestMatch.delivered3KG - planned.products['3KG'],
+          '5KG': bestMatch.delivered5KG - planned.products['5KG'],
+          'V00': bestMatch.deliveredV00 - planned.products['V00'],
+          'Cup': bestMatch.deliveredCup - planned.products['Cup']
+        },
+        action: 'delivered'
+      });
+    } else {
+      // Client was missed
+      const needsFollowUp = masterClient && masterClient.isFreezr;
+      
+      comparisonResults.push({
+        clientName: planned.name,
+        deliveryStatus: 'Missed',
+        hasFreezr: masterClient ? masterClient.isFreezr : false,
+        zone: masterClient ? masterClient.location : 'Unknown',
+        planned: {
+          '3KG': planned.products['3KG'],
+          '5KG': planned.products['5KG'],
+          'V00': planned.products['V00'],
+          'Cup': planned.products['Cup'],
+          total: planned.totalQuantity
+        },
+        delivered: {
+          '3KG': 0,
+          '5KG': 0,
+          'V00': 0,
+          'Cup': 0,
+          total: 0
+        },
+        variance: {
+          '3KG': -planned.products['3KG'],
+          '5KG': -planned.products['5KG'],
+          'V00': -planned.products['V00'],
+          'Cup': -planned.products['Cup']
+        },
+        action: needsFollowUp ? 'urgent_followup' : 'followup'
+      });
+    }
+  }
+  
+  // Process unplanned deliveries
+  fulfilledDeliveries.forEach((fulfilled, index) => {
+    if (!matchedDeliveries.has(index)) {
+      // Find client in master database
+      const masterClient = masterClientList.find(mc => {
+        const mName = mc.name.toLowerCase().replace(/\s+/g, '');
+        const fName = fulfilled.clientName.toLowerCase().replace(/\s+/g, '');
+        return mName.includes(fName) || fName.includes(mName);
+      });
+      
+      comparisonResults.push({
+        clientName: fulfilled.clientName,
+        deliveryStatus: 'Unplanned',
+        hasFreezr: masterClient ? masterClient.isFreezr : false,
+        zone: masterClient ? masterClient.location : 'Unknown',
+        planned: {
+          '3KG': 0,
+          '5KG': 0,
+          'V00': 0,
+          'Cup': 0,
+          total: 0
+        },
+        delivered: {
+          '3KG': fulfilled.delivered3KG,
+          '5KG': fulfilled.delivered5KG,
+          'V00': fulfilled.deliveredV00,
+          'Cup': fulfilled.deliveredCup,
+          total: fulfilled.totalDelivered
+        },
+        variance: {
+          '3KG': fulfilled.delivered3KG,
+          '5KG': fulfilled.delivered5KG,
+          'V00': fulfilled.deliveredV00,
+          'Cup': fulfilled.deliveredCup
+        },
+        action: 'review'
+      });
+    }
+  });
+  
+  // Generate human-readable report
+  const comparison = generateComparisonReport(comparisonResults, plan.date, new Date().toDateString());
+  
+  return {
+    success: true,
+    comparison: comparison,
+    comparisonResults: comparisonResults,
+    timestamp: new Date().toISOString(),
+    planDate: plan.date,
+    deliveryDate: new Date().toDateString(),
+    planId: plan.id,
+    stats: {
+      plannedClients: plannedClients.length,
+      fulfilledDeliveries: fulfilledDeliveries.length,
+      delivered: comparisonResults.filter(r => r.deliveryStatus === 'Delivered').length,
+      missed: comparisonResults.filter(r => r.deliveryStatus === 'Missed').length,
+      unplanned: comparisonResults.filter(r => r.deliveryStatus === 'Unplanned').length
+    }
+  };
+}
+
 // NEW 3-step comparison function
 async function compareDeliveryFromText(deliveryText, masterClientList, sessionId = null) {
   try {
@@ -580,6 +823,7 @@ module.exports = {
   savePlanFromText,
   compareDeliveryFromFile,
   compareDeliveryFromText,
+  compareDeliveryWithPlan,
   getLatestPlan,
   getPlanForDate,
   extractDateFromText,

@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { analyzeReport, analyzeTextDirectly } = require('./analysis');
 const { loadClientList, addClient, getUnvisitedClients, getClientListForPrompt, importClientsFromFile, convertCsvJsonToClients } = require('./clients');
-const { savePlanFromFile, savePlanFromText, compareDeliveryFromFile, compareDeliveryFromText } = require('./plan-comparison');
+const { savePlanFromFile, savePlanFromText, compareDeliveryFromFile, compareDeliveryFromText, compareDeliveryWithPlan } = require('./plan-comparison');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -243,8 +243,6 @@ app.get('/', (req, res) => {
                 await loadClientStats();
             });
 
-
-
             // Plan upload handlers
             document.getElementById('planFileForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -274,6 +272,15 @@ app.get('/', (req, res) => {
                 await submitDelivery('/upload-delivery', formData);
             });
 
+            // Load plan data from localStorage on page load
+            window.addEventListener('load', () => {
+                const savedPlan = localStorage.getItem('currentPlan');
+                if (savedPlan) {
+                    currentPlanData = JSON.parse(savedPlan);
+                    console.log('📋 Loaded plan data from localStorage:', currentPlanData);
+                }
+            });
+
             document.getElementById('deliveryTextForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const textarea = e.target.querySelector('textarea[name="text"]');
@@ -284,13 +291,28 @@ app.get('/', (req, res) => {
                     return;
                 }
                 
+                // Load plan data from localStorage if not already loaded
+                if (!currentPlanData) {
+                    const savedPlan = localStorage.getItem('currentPlan');
+                    if (savedPlan) {
+                        currentPlanData = JSON.parse(savedPlan);
+                        console.log('📋 Loaded plan data from localStorage for delivery:', currentPlanData);
+                    }
+                }
+                
                 const formData = new URLSearchParams();
                 formData.append('text', text);
-                if (currentSessionId) {
-                    formData.append('sessionId', currentSessionId);
-                    console.log('📱 Including session ID in delivery request:', currentSessionId);
+                
+                // Include plan data directly in the request
+                if (currentPlanData && currentPlanData.planText) {
+                    formData.append('planText', currentPlanData.planText);
+                    console.log('📱 Including plan text directly in delivery request');
+                } else {
+                    showError('No plan found. Please upload a distribution plan first.');
+                    return;
                 }
-                await submitDeliveryText('/submit-delivery', formData);
+                
+                await submitDeliveryText('/submit-delivery-with-plan', formData);
             });
 
             // Legacy quick analysis handlers
@@ -325,7 +347,79 @@ app.get('/', (req, res) => {
                 await submitDeliveryText('/submit-delivery', formData);
             });
 
+            // Store plan data in localStorage for delivery comparison
+            let currentPlanData = null;
 
+            async function submitPlanText(endpoint, formData) {
+                const loadingEl = document.getElementById('loading');
+                const resultEl = document.getElementById('result');
+                
+                loadingEl.style.display = 'block';
+                resultEl.innerHTML = '';
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: formData
+                    });
+
+                    const result = await response.json();
+                    loadingEl.style.display = 'none';
+
+                    if (result.success) {
+                        // Store plan data in localStorage for delivery comparison
+                        const planData = {
+                            id: result.planId,
+                            date: result.planDate || new Date().toDateString(),
+                            sessionId: result.sessionId,
+                            clientCount: result.clientCount,
+                            timestamp: new Date().toISOString(),
+                            // Store the original plan text for re-parsing
+                            planText: formData.get('text')
+                        };
+                        
+                        localStorage.setItem('currentPlan', JSON.stringify(planData));
+                        currentPlanData = planData;
+                        console.log('📋 Plan data stored in localStorage:', planData);
+                        
+                        const totalProducts = result.totalProducts || {};
+                        const productSummary = Object.entries(totalProducts)
+                            .map(([product, count]) => \`\${product}: \${count}\`)
+                            .join(', ');
+                            
+                        resultEl.innerHTML = \`
+                            <div class="result">
+                                <h3>✅ Distribution Plan Saved</h3>
+                                <p><strong>📅 Plan Date:</strong> \${result.planDate || 'Today'}</p>
+                                <p><strong>👥 Clients Planned:</strong> \${result.clientCount}</p>
+                                <p><strong>📦 Total Products:</strong> \${productSummary || 'No products extracted'}</p>
+                                <p><strong>💾 Storage:</strong> Saved in browser for comparison</p>
+                                <p><em>\${result.message}</em></p>
+                                <small>Saved at: \${result.timestamp}</small>
+                            </div>
+                        \`;
+                        document.querySelector('#planTextForm').reset();
+                    } else {
+                        resultEl.innerHTML = \`
+                            <div class="result error">
+                                <h3>❌ Plan Save Failed</h3>
+                                <p>\${result.error}</p>
+                            </div>
+                        \`;
+                    }
+                } catch (error) {
+                    loadingEl.style.display = 'none';
+                    resultEl.innerHTML = \`
+                        <div class="result error">
+                            <h3>❌ Network Error</h3>
+                            <p>\${error.message}</p>
+                        </div>
+                    \`;
+                }
+            }
 
             async function submitAnalysis(endpoint, formData) {
                 const loadingEl = document.getElementById('loading');
@@ -390,17 +484,24 @@ app.get('/', (req, res) => {
                     loadingEl.style.display = 'none';
 
                     if (result.success) {
+                        const dateMatchIcon = result.dateMatch ? '✅' : '⚠️';
+                        const dateInfo = result.dateMatch ? 
+                            'Same-day analysis' : 
+                            \`Cross-date analysis (Plan: \${result.planDate}, Delivery: \${result.deliveryDate})\`;
+                            
                         resultEl.innerHTML = \`
                             <div class="result">
-                                <h3>✅ Plan vs Delivery Comparison Complete</h3>
+                                <h3>📊 Plan vs Actual Delivery Comparison</h3>
+                                <p><strong>📅 Date Analysis:</strong> \${dateMatchIcon} \${dateInfo}</p>
                                 <pre>\${result.comparison}</pre>
                                 <small>Generated at: \${result.timestamp} | Plan ID: \${result.planId}</small>
                             </div>
                         \`;
+                        document.querySelector('#deliveryTextForm').reset();
                     } else {
                         resultEl.innerHTML = \`
                             <div class="result error">
-                                <h3>❌ Comparison Failed</h3>
+                                <h3>❌ Delivery Analysis Failed</h3>
                                 <p>\${result.error}</p>
                             </div>
                         \`;
@@ -415,8 +516,6 @@ app.get('/', (req, res) => {
                     \`;
                 }
             }
-
-
 
             async function loadClientStats() {
                 try {
@@ -490,8 +589,6 @@ app.get('/', (req, res) => {
                 }
             }
 
-
-
             function showError(message) {
                 document.getElementById('result').innerHTML = \`
                     <div class="result error">
@@ -555,66 +652,6 @@ app.get('/', (req, res) => {
             // Store session ID globally for delivery comparison
             let currentSessionId = null;
 
-            async function submitPlanText(endpoint, formData) {
-                const loadingEl = document.getElementById('loading');
-                const resultEl = document.getElementById('result');
-                
-                loadingEl.style.display = 'block';
-                resultEl.innerHTML = '';
-
-                try {
-                    const response = await fetch(endpoint, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded'
-                        },
-                        body: formData
-                    });
-
-                    const result = await response.json();
-                    loadingEl.style.display = 'none';
-
-                    if (result.success) {
-                        // Store session ID for later use in delivery comparison
-                        currentSessionId = result.sessionId;
-                        console.log('📋 Plan saved with session ID:', currentSessionId);
-                        
-                        const totalProducts = result.totalProducts || {};
-                        const productSummary = Object.entries(totalProducts)
-                            .map(([product, count]) => \`\${product}: \${count}\`)
-                            .join(', ');
-                            
-                        resultEl.innerHTML = \`
-                            <div class="result">
-                                <h3>✅ Distribution Plan Saved</h3>
-                                <p><strong>📅 Plan Date:</strong> \${result.planDate || 'Today'}</p>
-                                <p><strong>👥 Clients Planned:</strong> \${result.clientCount}</p>
-                                <p><strong>📦 Total Products:</strong> \${productSummary || 'No products extracted'}</p>
-                                <p><strong>🔑 Session ID:</strong> \${result.sessionId}</p>
-                                <p><em>\${result.message}</em></p>
-                                <small>Saved at: \${result.timestamp}</small>
-                            </div>
-                        \`;
-                        document.querySelector('#planTextForm').reset();
-                    } else {
-                        resultEl.innerHTML = \`
-                            <div class="result error">
-                                <h3>❌ Plan Save Failed</h3>
-                                <p>\${result.error}</p>
-                            </div>
-                        \`;
-                    }
-                } catch (error) {
-                    loadingEl.style.display = 'none';
-                    resultEl.innerHTML = \`
-                        <div class="result error">
-                            <h3>❌ Network Error</h3>
-                            <p>\${error.message}</p>
-                        </div>
-                    \`;
-                }
-            }
-
             async function submitDelivery(endpoint, formData) {
                 const loadingEl = document.getElementById('loading');
                 const resultEl = document.getElementById('result');
@@ -645,59 +682,6 @@ app.get('/', (req, res) => {
                                 <small>Generated at: \${result.timestamp} | Plan ID: \${result.planId}</small>
                             </div>
                         \`;
-                    } else {
-                        resultEl.innerHTML = \`
-                            <div class="result error">
-                                <h3>❌ Delivery Analysis Failed</h3>
-                                <p>\${result.error}</p>
-                            </div>
-                        \`;
-                    }
-                } catch (error) {
-                    loadingEl.style.display = 'none';
-                    resultEl.innerHTML = \`
-                        <div class="result error">
-                            <h3>❌ Network Error</h3>
-                            <p>\${error.message}</p>
-                        </div>
-                    \`;
-                }
-            }
-
-            async function submitDeliveryText(endpoint, formData) {
-                const loadingEl = document.getElementById('loading');
-                const resultEl = document.getElementById('result');
-                
-                loadingEl.style.display = 'block';
-                resultEl.innerHTML = '';
-
-                try {
-                    const response = await fetch(endpoint, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded'
-                        },
-                        body: formData
-                    });
-
-                    const result = await response.json();
-                    loadingEl.style.display = 'none';
-
-                    if (result.success) {
-                        const dateMatchIcon = result.dateMatch ? '✅' : '⚠️';
-                        const dateInfo = result.dateMatch ? 
-                            'Same-day analysis' : 
-                            \`Cross-date analysis (Plan: \${result.planDate}, Delivery: \${result.deliveryDate})\`;
-                            
-                        resultEl.innerHTML = \`
-                            <div class="result">
-                                <h3>📊 Plan vs Actual Delivery Comparison</h3>
-                                <p><strong>📅 Date Analysis:</strong> \${dateMatchIcon} \${dateInfo}</p>
-                                <pre>\${result.comparison}</pre>
-                                <small>Generated at: \${result.timestamp} | Plan ID: \${result.planId}</small>
-                            </div>
-                        \`;
-                        document.querySelector('#deliveryTextForm').reset();
                     } else {
                         resultEl.innerHTML = \`
                             <div class="result error">
@@ -750,8 +734,6 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     });
   }
 });
-
-
 
 // Get clients endpoint
 app.get('/clients', (req, res) => {
@@ -958,6 +940,41 @@ app.post('/submit-delivery', express.urlencoded({ extended: true }), async (req,
     res.json(result);
   } catch (error) {
     console.error('Delivery comparison error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// New endpoint that processes plan and delivery together
+app.post('/submit-delivery-with-plan', express.urlencoded({ extended: true }), async (req, res) => {
+  try {
+    const { text, planText } = req.body;
+    
+    console.log('📱 Delivery with plan submission received');
+    console.log('📱 Delivery text length:', text ? text.length : 'undefined');
+    console.log('📱 Plan text length:', planText ? planText.length : 'undefined');
+    
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid delivery text provided'
+      });
+    }
+
+    if (!planText || typeof planText !== 'string' || planText.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid plan text provided'
+      });
+    }
+
+    const masterClientList = loadClientList();
+    const result = await compareDeliveryWithPlan(text, planText, masterClientList);
+    res.json(result);
+  } catch (error) {
+    console.error('Delivery with plan comparison error:', error);
     res.status(500).json({
       success: false,
       error: error.message
