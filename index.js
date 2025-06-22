@@ -1392,6 +1392,47 @@ app.post('/submit-delivery-with-plan', express.urlencoded({ extended: true }), a
   }
 });
 
+// API endpoint for JSON-based delivery comparison (matches frontend fetch)
+app.post('/api/compare-delivery', express.json(), async (req, res) => {
+  try {
+    const { deliveryText, planText } = req.body;
+    
+    console.log('🔄 API delivery comparison received');
+    console.log('📱 Delivery text length:', deliveryText ? deliveryText.length : 'undefined');
+    console.log('📋 Plan text length:', planText ? planText.length : 'undefined');
+    
+    if (!deliveryText || typeof deliveryText !== 'string' || deliveryText.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid deliveryText provided'
+      });
+    }
+
+    if (!planText || typeof planText !== 'string' || planText.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid planText provided'
+      });
+    }
+
+    const masterClientList = loadClientList();
+    const result = await compareDeliveryWithPlan(deliveryText, planText, masterClientList);
+    
+    // Return the result with success flag
+    res.json({
+      success: true,
+      ...result
+    });
+    
+  } catch (error) {
+    console.error('API delivery comparison error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // OCR endpoint for plan image uploads
 app.post('/upload-plan-image', upload.single('image'), async (req, res) => {
   try {
