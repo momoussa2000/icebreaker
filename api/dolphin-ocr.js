@@ -1,23 +1,30 @@
-const { parseWithDolphin } = require('../dolphin-ocr');
-const multer = require('multer');
+// 🐬 Enhanced OCR API for Document Image Parsing
+// Lightweight serverless function using Tesseract with intelligent processing
 
-// Configure multer for handling image uploads
+const multer = require('multer');
+const { EnhancedOCR } = require('../dolphin-ocr');
+
+// Configure multer for image uploads (serverless-friendly)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
+    fileSize: 10 * 1024 * 1024, // 10MB limit
   },
   fileFilter: (req, file, cb) => {
+    // Accept images only
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {
       cb(new Error('Only image files are allowed'), false);
     }
-  }
+  },
 });
 
-module.exports = async function (req, res) {
-  // CORS headers
+/**
+ * Enhanced OCR API endpoint for parsing document images
+ */
+export default async function handler(req, res) {
+  // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -27,144 +34,111 @@ module.exports = async function (req, res) {
   }
 
   if (req.method !== 'POST') {
-    return res.status(405).json({ 
-      success: false, 
-      error: 'Only POST method allowed' 
+    return res.status(405).json({
+      success: false,
+      error: 'Method not allowed. Use POST to upload images.',
     });
   }
 
   try {
-    console.log('🐬 Dolphin OCR API endpoint called');
+    console.log('🐬 Enhanced OCR API called');
 
-    // Handle multipart form data
-    return new Promise((resolve, reject) => {
-      upload.single('image')(req, res, async (err) => {
+    // Handle file upload
+    await new Promise((resolve, reject) => {
+      upload.single('image')(req, res, (err) => {
         if (err) {
-          console.error('❌ File upload error:', err);
-          return res.status(400).json({
-            success: false,
-            error: `File upload failed: ${err.message}`
-          });
-        }
-
-        try {
-          if (!req.file) {
-            return res.status(400).json({
-              success: false,
-              error: 'No image file provided'
-            });
-          }
-
-          const taskType = req.body.taskType || 'auto';
-          console.log(`📄 Processing ${req.file.mimetype} image (${req.file.size} bytes) with task: ${taskType}`);
-
-          // Parse document with Dolphin OCR
-          const result = await parseWithDolphin(req.file.buffer, taskType);
-
-          if (result.success) {
-            console.log('✅ Dolphin OCR parsing successful');
-            
-            // Validate the parsed result
-            const validation = validateDolphinResult(result);
-            
-            return res.status(200).json({
-              success: true,
-              ...result,
-              validation,
-              metadata: {
-                ...result.metadata,
-                fileSize: req.file.size,
-                mimeType: req.file.mimetype,
-                originalName: req.file.originalname
-              }
-            });
-          } else {
-            console.error('❌ Dolphin OCR parsing failed:', result.error);
-            return res.status(500).json({
-              success: false,
-              error: result.error,
-              fallbackSuggestion: 'Consider using traditional OCR as fallback'
-            });
-          }
-
-        } catch (error) {
-          console.error('❌ Dolphin OCR API error:', error);
-          return res.status(500).json({
-            success: false,
-            error: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-          });
+          console.error('Upload error:', err);
+          reject(err);
+        } else {
+          resolve();
         }
       });
     });
 
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No image file provided. Please upload an image.',
+      });
+    }
+
+    // Get task type from query or body
+    const taskType = req.query.task || req.body?.task || 'auto';
+    console.log(`📋 Processing ${taskType} document...`);
+
+    // Initialize Enhanced OCR
+    const enhancedOCR = new EnhancedOCR();
+    
+    // Parse the document using image buffer
+    console.log(`📊 Image size: ${req.file.size} bytes, Type: ${req.file.mimetype}`);
+    const result = await enhancedOCR.parseDocument(req.file.buffer, taskType);
+
+    if (!result.success) {
+      throw new Error(result.error || 'Enhanced OCR parsing failed');
+    }
+
+    // Validate the parsed document
+    const validation = enhancedOCR.validateParsedDocument(result);
+    
+    console.log(`✅ Enhanced OCR completed successfully`);
+    console.log(`📈 Clients detected: ${result.structured?.clients?.length || 0}`);
+    console.log(`🎯 Confidence: ${validation.confidence}`);
+
+    // Return comprehensive results
+    return res.status(200).json({
+      success: true,
+      data: {
+        // Core results
+        extractedText: result.rawText,
+        structuredData: result.structured,
+        
+        // Validation and quality assessment
+        validation: validation,
+        
+        // Metadata
+        metadata: {
+          model: 'Enhanced-Tesseract-OCR',
+          taskType: taskType,
+          timestamp: result.timestamp,
+          imageInfo: {
+            size: req.file.size,
+            type: req.file.mimetype,
+            filename: req.file.originalname
+          },
+          performance: {
+            processingTime: 'N/A', // Could add timing if needed
+            clientsDetected: result.structured?.clients?.length || 0,
+            confidence: validation.confidence
+          }
+        }
+      },
+      
+      // Quick access fields for frontend
+      clients: result.structured?.clients || [],
+      totals: result.structured?.totals || {},
+      confidence: validation.confidence,
+      isValid: validation.isValid,
+      issues: validation.issues,
+      suggestions: validation.suggestions
+    });
+
   } catch (error) {
-    console.error('❌ Dolphin OCR endpoint error:', error);
+    console.error('❌ Enhanced OCR API Error:', error);
+    
     return res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message || 'Enhanced OCR processing failed',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      timestamp: new Date().toISOString()
     });
   }
-};
+}
 
 /**
- * Validate Dolphin OCR result quality
- * @param {Object} result - Dolphin parsing result
- * @returns {Object} Validation info
+ * Export configuration for Vercel
  */
-function validateDolphinResult(result) {
-  const validation = {
-    isValid: false,
-    confidence: 'low',
-    issues: [],
-    suggestions: [],
-    clientCount: 0,
-    hasArabicText: false,
-    hasStructuredData: false
-  };
-
-  if (!result.success) {
-    validation.issues.push('OCR parsing failed');
-    return validation;
-  }
-
-  // Check for structured data
-  const clientCount = result.structured?.clients?.length || 0;
-  validation.clientCount = clientCount;
-  validation.hasStructuredData = clientCount > 0;
-
-  if (clientCount === 0) {
-    validation.issues.push('No clients detected in structured output');
-    validation.suggestions.push('Check image quality and document format');
-  } else if (clientCount < 3) {
-    validation.confidence = 'medium';
-    validation.suggestions.push('Low client count - verify document completeness');
-  } else {
-    validation.confidence = 'high';
-    validation.isValid = true;
-  }
-
-  // Check for Arabic text
-  const hasArabicText = result.rawText && /[\u0600-\u06FF]/.test(result.rawText);
-  validation.hasArabicText = hasArabicText;
-  
-  if (!hasArabicText) {
-    validation.issues.push('No Arabic text detected');
-    validation.suggestions.push('Verify document contains Arabic client names');
-  }
-
-  // Check for numerical data
-  const hasNumbers = result.rawText && /\d/.test(result.rawText);
-  if (!hasNumbers) {
-    validation.issues.push('No numerical data detected');
-    validation.suggestions.push('Ensure document contains quantity information');
-  }
-
-  // Overall quality assessment
-  if (validation.hasStructuredData && validation.hasArabicText && hasNumbers) {
-    validation.confidence = 'high';
-    validation.isValid = true;
-  }
-
-  return validation;
-} 
+export const config = {
+  api: {
+    bodyParser: false, // Let multer handle body parsing
+  },
+}; 
