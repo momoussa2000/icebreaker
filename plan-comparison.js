@@ -119,21 +119,14 @@ function parseDeliveryReport(deliveryText) {
       const quantitiesText = compoundMatch[2].trim();
       
       // Extract all quantities from the compound text
-      // Pattern for ص (3KG)
-      const smallMatches = quantitiesText.match(/(\d+)\s*ص/g);
-      if (smallMatches) {
-        smallMatches.forEach(match => {
-          const qty = parseInt(match.match(/(\d+)/)[1]);
-          quantities['3KG'] += qty;
-        });
-      }
+      // Note: Order matters! Process longer patterns first to avoid conflicts
       
-      // Pattern for ك (5KG)
-      const largeMatches = quantitiesText.match(/(\d+)\s*ك/g);
-      if (largeMatches) {
-        largeMatches.forEach(match => {
+      // Pattern for كوب (Cup) - must be before ك pattern
+      const cupMatches = quantitiesText.match(/(\d+)\s*كوب/g);
+      if (cupMatches) {
+        cupMatches.forEach(match => {
           const qty = parseInt(match.match(/(\d+)/)[1]);
-          quantities['5KG'] += qty;
+          quantities['Cup'] += qty;
         });
       }
       
@@ -146,12 +139,21 @@ function parseDeliveryReport(deliveryText) {
         });
       }
       
-      // Pattern for كوب (Cup)
-      const cupMatches = quantitiesText.match(/(\d+)\s*كوب/g);
-      if (cupMatches) {
-        cupMatches.forEach(match => {
+      // Pattern for ص (3KG)
+      const smallMatches = quantitiesText.match(/(\d+)\s*ص(?!\w)/g);
+      if (smallMatches) {
+        smallMatches.forEach(match => {
           const qty = parseInt(match.match(/(\d+)/)[1]);
-          quantities['Cup'] += qty;
+          quantities['3KG'] += qty;
+        });
+      }
+      
+      // Pattern for ك (5KG) - avoid matching كوب by using negative lookahead
+      const largeMatches = quantitiesText.match(/(\d+)\s*ك(?!وب)/g);
+      if (largeMatches) {
+        largeMatches.forEach(match => {
+          const qty = parseInt(match.match(/(\d+)/)[1]);
+          quantities['5KG'] += qty;
         });
       }
       
@@ -331,6 +333,20 @@ async function compareDeliveryWithPlan(deliveryText, planText, masterClientList)
       line = line.trim();
       if (!line || line.length < 3) continue;
       
+      // Skip header rows and totals rows
+      if (line.includes('اسم العميل') ||
+          line.includes('المجموع') ||
+          line.includes('Client Name') ||
+          line.includes('Total') ||
+          line.includes('3 KG') ||
+          line.includes('5 KG') ||
+          line.includes('V00') ||
+          line.includes('Cup') ||
+          line.includes('Comment')) {
+        console.log('⏭️ Skipping header/total row:', line);
+        continue;
+      }
+      
       // Parse tab-separated values (Excel copy-paste format)
       const parts = line.split('\t').map(p => p.trim()).filter(p => p !== '');
       if (parts.length >= 2) {
@@ -344,6 +360,7 @@ async function compareDeliveryWithPlan(deliveryText, planText, masterClientList)
         
         const totalQty = Object.values(products).reduce((sum, qty) => sum + qty, 0);
         if (clientName.length > 1 && totalQty > 0) {
+          console.log('✅ Added client:', clientName, 'with products:', products);
           planClients.push({
             name: clientName,
             products: products,
