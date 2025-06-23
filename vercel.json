@@ -1,11 +1,12 @@
 {
   "version": 2,
   "builds": [
-    { "src": "index.js", "use": "@vercel/node" },
-    { "src": "api/test.js", "use": "@vercel/node" }
+    { "src": "api/**/*.js", "use": "@vercel/node" },
+    { "src": "index.js", "use": "@vercel/node" }
   ],
   "routes": [
     { "src": "/api/test", "dest": "/api/test.js" },
+    { "src": "/api/compare-delivery", "dest": "/api/compare-delivery.js" },
     { "src": "/.*", "dest": "index.js" }
   ],
   "env": {
