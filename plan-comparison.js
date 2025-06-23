@@ -110,56 +110,116 @@ function parseDeliveryReport(deliveryText) {
     let quantities = { '3KG': 0, '5KG': 0, 'V00': 0, 'Cup': 0 };
     let foundMatch = false;
     
-    // Method 1: Handle "صغير" (small = 3KG) and "كبير" (large = 5KG) patterns
-    const smallMatch = line.match(/(.+?)\s*(\d+)\s*صغير/i) || line.match(/(.+?)\s*صغير.*?(\d+)/i);
-    if (smallMatch) {
-      clientName = smallMatch[1].trim();
-      quantities['3KG'] = parseInt(smallMatch[2]) || 0;
+    // PRIMARY METHOD: Handle compound delivery format like "سبوتشو أركان - 12ص + 8ك + 2كوب"
+    const compoundPattern = /^(.+?)\s*-\s*(.+)$/;
+    const compoundMatch = line.match(compoundPattern);
+    
+    if (compoundMatch) {
+      clientName = compoundMatch[1].trim();
+      const quantitiesText = compoundMatch[2].trim();
+      
+      // Extract all quantities from the compound text
+      // Pattern for ص (3KG)
+      const smallMatches = quantitiesText.match(/(\d+)\s*ص/g);
+      if (smallMatches) {
+        smallMatches.forEach(match => {
+          const qty = parseInt(match.match(/(\d+)/)[1]);
+          quantities['3KG'] += qty;
+        });
+      }
+      
+      // Pattern for ك (5KG)
+      const largeMatches = quantitiesText.match(/(\d+)\s*ك/g);
+      if (largeMatches) {
+        largeMatches.forEach(match => {
+          const qty = parseInt(match.match(/(\d+)/)[1]);
+          quantities['5KG'] += qty;
+        });
+      }
+      
+      // Pattern for فو or فوو (V00)
+      const v00Matches = quantitiesText.match(/(\d+)\s*فو/g);
+      if (v00Matches) {
+        v00Matches.forEach(match => {
+          const qty = parseInt(match.match(/(\d+)/)[1]);
+          quantities['V00'] += qty;
+        });
+      }
+      
+      // Pattern for كوب (Cup)
+      const cupMatches = quantitiesText.match(/(\d+)\s*كوب/g);
+      if (cupMatches) {
+        cupMatches.forEach(match => {
+          const qty = parseInt(match.match(/(\d+)/)[1]);
+          quantities['Cup'] += qty;
+        });
+      }
+      
       foundMatch = true;
     }
     
-    const largeMatch = line.match(/(.+?)\s*(\d+)\s*كبير/i) || line.match(/(.+?)\s*كبير.*?(\d+)/i);
-    if (largeMatch) {
-      if (!clientName) clientName = largeMatch[1].trim();
-      quantities['5KG'] = parseInt(largeMatch[2]) || 0;
-      foundMatch = true;
-    }
-    
-    // Method 2: Handle "فو" or "فوو" (V00) patterns
-    const v00Match = line.match(/(.+?)\s*(\d+)\s*فو/i);
-    if (v00Match) {
-      if (!clientName) clientName = v00Match[1].trim();
-      quantities['V00'] = parseInt(v00Match[2]) || 0;
-      foundMatch = true;
-    }
-    
-    // Method 3: Handle "كوب" (Cup) patterns
-    const cupMatch = line.match(/(.+?)\s*(\d+)\s*كوب/i);
-    if (cupMatch) {
-      if (!clientName) clientName = cupMatch[1].trim();
-      quantities['Cup'] = parseInt(cupMatch[2]) || 0;
-      foundMatch = true;
-    }
-    
-    // Method 4: Original patterns with ص (صغير) and ك (كبير)
-    const match3KG = line.match(/(.+?)\s*(\d+)\s*ص/);
-    if (match3KG && !foundMatch) {
-      clientName = match3KG[1].trim();
-      quantities['3KG'] = parseInt(match3KG[2]);
-      foundMatch = true;
-    }
-    
-    const match5KG = line.match(/(.+?)\s*(\d+)\s*ك/);
-    if (match5KG && !foundMatch) {
-      if (!clientName) clientName = match5KG[1].trim();
-      quantities['5KG'] = parseInt(match5KG[2]);
-      foundMatch = true;
+    // FALLBACK METHODS: Original individual patterns (keep for backward compatibility)
+    if (!foundMatch) {
+      // Method 1: Handle "صغير" (small = 3KG) and "كبير" (large = 5KG) patterns
+      const smallMatch = line.match(/(.+?)\s*(\d+)\s*صغير/i) || line.match(/(.+?)\s*صغير.*?(\d+)/i);
+      if (smallMatch) {
+        clientName = smallMatch[1].trim();
+        quantities['3KG'] = parseInt(smallMatch[2]) || 0;
+        foundMatch = true;
+      }
+      
+      const largeMatch = line.match(/(.+?)\s*(\d+)\s*كبير/i) || line.match(/(.+?)\s*كبير.*?(\d+)/i);
+      if (largeMatch) {
+        if (!clientName) clientName = largeMatch[1].trim();
+        quantities['5KG'] = parseInt(largeMatch[2]) || 0;
+        foundMatch = true;
+      }
+      
+      // Method 2: Handle "فو" or "فوو" (V00) patterns
+      const v00Match = line.match(/(.+?)\s*(\d+)\s*فو/i);
+      if (v00Match) {
+        if (!clientName) clientName = v00Match[1].trim();
+        quantities['V00'] = parseInt(v00Match[2]) || 0;
+        foundMatch = true;
+      }
+      
+      // Method 3: Handle "كوب" (Cup) patterns
+      const cupMatch = line.match(/(.+?)\s*(\d+)\s*كوب/i);
+      if (cupMatch) {
+        if (!clientName) clientName = cupMatch[1].trim();
+        quantities['Cup'] = parseInt(cupMatch[2]) || 0;
+        foundMatch = true;
+      }
+      
+      // Method 4: Simple patterns with ص (صغير) and ك (كبير)
+      const match3KG = line.match(/(.+?)\s*(\d+)\s*ص/);
+      if (match3KG && !foundMatch) {
+        clientName = match3KG[1].trim();
+        quantities['3KG'] = parseInt(match3KG[2]);
+        foundMatch = true;
+      }
+      
+      const match5KG = line.match(/(.+?)\s*(\d+)\s*ك/);
+      if (match5KG && !foundMatch) {
+        if (!clientName) clientName = match5KG[1].trim();
+        quantities['5KG'] = parseInt(match5KG[2]);
+        foundMatch = true;
+      }
     }
     
     // Clean up client name and add to fulfilled deliveries
     if (foundMatch && clientName) {
+      // Clean up client name
       clientName = clientName.replace(/^[0-9\.\-\s]+/, '').trim();
       clientName = clientName.replace(/[0-9]+$/, '').trim();
+      
+      // Skip header rows and totals
+      if (clientName === 'اسم العميل' || 
+          clientName === 'المجموع' || 
+          clientName === 'Total' ||
+          clientName.length < 2) {
+        continue;
+      }
       
       const totalDelivered = Object.values(quantities).reduce((sum, qty) => sum + qty, 0);
       if (clientName.length > 1 && totalDelivered > 0) {
