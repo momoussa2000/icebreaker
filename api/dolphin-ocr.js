@@ -100,51 +100,71 @@ module.exports = async function handler(req, res) {
 }
 
 /**
- * Generate realistic demo data
+ * Generate realistic demo data based on the actual report format
  */
 function generateDemoData(taskType) {
   if (taskType === 'delivery') {
     return {
-      rawText: `بيزكس ستي فيو - 6ص + 3ك
-نوي - 4ص + 2ك  
-الفردوس كافي - 8ص + 1ك + 3كوب
-كافي شوب المنصورة - 10ص + 4ك
-سنترال بيرك - 3ص + 2ك + 1فو
-مول العرب - 12ص + 6ك
-أكاديمية الشرطة - 15ص + 8ك + 2كوب`,
+      rawText: `سبوتشو أركان - 12ص + 8ك
+نوي - 15ص + 10ك  
+زاميل - 18ص + 12ك + 2كوب
+سعن فورتش بالم هيلز - 8ص + 5ك
+رايت زايد - 12ص + 8ك
+سعودي دريم لاند - 80ص + 60ك
+سعن فورتش أركان - 8ص + 5ك
+سعن فورتش كابيتال - 25ص + 15ك
+فوو بفرلي هيلز - 8ص + 5ك + 30فو
+فوو زايد - 5ص + 25ك
+دارا جاليريا - 10ص + 8ك
+سعودي زايد - 85ص + 65ك`,
       clients: [
-        { clientName: 'بيزكس ستي فيو', delivered: { '3KG': 6, '5KG': 3, 'V00': 0, 'Cup': 0 }},
-        { clientName: 'نوي', delivered: { '3KG': 4, '5KG': 2, 'V00': 0, 'Cup': 0 }},
-        { clientName: 'الفردوس كافي', delivered: { '3KG': 8, '5KG': 1, 'V00': 0, 'Cup': 3 }},
-        { clientName: 'كافي شوب المنصورة', delivered: { '3KG': 10, '5KG': 4, 'V00': 0, 'Cup': 0 }},
-        { clientName: 'سنترال بيرك', delivered: { '3KG': 3, '5KG': 2, 'V00': 1, 'Cup': 0 }},
-        { clientName: 'مول العرب', delivered: { '3KG': 12, '5KG': 6, 'V00': 0, 'Cup': 0 }},
-        { clientName: 'أكاديمية الشرطة', delivered: { '3KG': 15, '5KG': 8, 'V00': 0, 'Cup': 2 }}
+        { clientName: 'سبوتشو أركان', delivered: { '3KG': 12, '5KG': 8, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'نوي', delivered: { '3KG': 15, '5KG': 10, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'زاميل', delivered: { '3KG': 18, '5KG': 12, 'V00': 0, 'Cup': 2 }},
+        { clientName: 'سعن فورتش بالم هيلز', delivered: { '3KG': 8, '5KG': 5, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'رايت زايد', delivered: { '3KG': 12, '5KG': 8, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'سعودي دريم لاند', delivered: { '3KG': 80, '5KG': 60, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'سعن فورتش أركان', delivered: { '3KG': 8, '5KG': 5, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'سعن فورتش كابيتال', delivered: { '3KG': 25, '5KG': 15, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'فوو بفرلي هيلز', delivered: { '3KG': 8, '5KG': 5, 'V00': 30, 'Cup': 0 }},
+        { clientName: 'فوو زايد', delivered: { '3KG': 5, '5KG': 25, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'دارا جاليريا', delivered: { '3KG': 10, '5KG': 8, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'سعودي زايد', delivered: { '3KG': 85, '5KG': 65, 'V00': 0, 'Cup': 0 }}
       ],
-      totals: { '3KG': 58, '5KG': 26, 'V00': 1, 'Cup': 5 }
+      totals: { '3KG': 286, '5KG': 226, 'V00': 30, 'Cup': 2 }
     };
   } else {
-    // Plan format
+    // Plan format matching the uploaded report structure
     return {
-      rawText: `بيزكس ستي فيو	10	5	0	0
-نوي	6	2	0	0
-الفردوس كافي	8	3	0	5
-كافي شوب المنصورة	12	4	0	2
-سنترال بيرك	5	3	1	1
-مول العرب	15	8	2	0
-أكاديمية الشرطة	20	12	0	3
-التجمع الخامس	18	10	1	2`,
+      rawText: `اسم العميل	3 KG	5 KG	V00	Cup	Comment
+سبوتشو أركان	15	0	0	0	
+نوي	20	0	0	0	
+زاميل	20	0	0	0	
+سعن فورتش بالم هيلز	10	0	0	0	
+رايت زايد	15	0	0	0	
+سعودي دريم لاند	100	0	0	0	
+سعن فورتش أركان	10	0	0	0	
+سعن فورتش كابيتال	30	15	0	0	
+فوو بفرلي هيلز	10	35	0	0	
+فوو زايد	10	35	0	0	
+دارا جاليريا	0	12	0	0	
+سعودي زايد	100	0	0	0	
+المجموع	110	132	50	0`,
       clients: [
-        { clientName: 'بيزكس ستي فيو', planned: { '3KG': 10, '5KG': 5, 'V00': 0, 'Cup': 0 }},
-        { clientName: 'نوي', planned: { '3KG': 6, '5KG': 2, 'V00': 0, 'Cup': 0 }},
-        { clientName: 'الفردوس كافي', planned: { '3KG': 8, '5KG': 3, 'V00': 0, 'Cup': 5 }},
-        { clientName: 'كافي شوب المنصورة', planned: { '3KG': 12, '5KG': 4, 'V00': 0, 'Cup': 2 }},
-        { clientName: 'سنترال بيرك', planned: { '3KG': 5, '5KG': 3, 'V00': 1, 'Cup': 1 }},
-        { clientName: 'مول العرب', planned: { '3KG': 15, '5KG': 8, 'V00': 2, 'Cup': 0 }},
-        { clientName: 'أكاديمية الشرطة', planned: { '3KG': 20, '5KG': 12, 'V00': 0, 'Cup': 3 }},
-        { clientName: 'التجمع الخامس', planned: { '3KG': 18, '5KG': 10, 'V00': 1, 'Cup': 2 }}
+        { clientName: 'سبوتشو أركان', planned: { '3KG': 15, '5KG': 0, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'نوي', planned: { '3KG': 20, '5KG': 0, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'زاميل', planned: { '3KG': 20, '5KG': 0, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'سعن فورتش بالم هيلز', planned: { '3KG': 10, '5KG': 0, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'رايت زايد', planned: { '3KG': 15, '5KG': 0, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'سعودي دريم لاند', planned: { '3KG': 100, '5KG': 0, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'سعن فورتش أركان', planned: { '3KG': 10, '5KG': 0, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'سعن فورتش كابيتال', planned: { '3KG': 30, '5KG': 15, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'فوو بفرلي هيلز', planned: { '3KG': 10, '5KG': 35, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'فوو زايد', planned: { '3KG': 10, '5KG': 35, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'دارا جاليريا', planned: { '3KG': 0, '5KG': 12, 'V00': 0, 'Cup': 0 }},
+        { clientName: 'سعودي زايد', planned: { '3KG': 100, '5KG': 0, 'V00': 0, 'Cup': 0 }}
       ],
-      totals: { '3KG': 94, '5KG': 47, 'V00': 4, 'Cup': 13 }
+      totals: { '3KG': 340, '5KG': 97, 'V00': 0, 'Cup': 0 }
     };
   }
 }
