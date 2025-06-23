@@ -7,7 +7,7 @@ module.exports = async function (req, res) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📊 Icebreaker Delivery Tracker with Dolphin OCR</title>
+    <title>📊 Icebreaker Delivery Tracker with Enhanced OCR</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -65,8 +65,8 @@ module.exports = async function (req, res) {
             font-size: 14px;
         }
         button:hover { background-color: #0056b3; }
-        button.dolphin { background-color: #17a2b8; }
-        button.dolphin:hover { background-color: #138496; }
+        button.enhanced { background-color: #28a745; }
+        button.enhanced:hover { background-color: #218838; }
         
         textarea {
             width: 100%;
@@ -102,11 +102,11 @@ module.exports = async function (req, res) {
             transition: border-color 0.3s;
         }
         .upload-zone:hover {
-            border-color: #007bff;
+            border-color: #28a745;
         }
         .upload-zone.drag-over {
-            border-color: #007bff;
-            background-color: #f0f8ff;
+            border-color: #28a745;
+            background-color: #f0fff0;
         }
         
         .grid {
@@ -117,10 +117,11 @@ module.exports = async function (req, res) {
         }
         
         .model-info {
-            background: #e7f3ff;
+            background: #e8f5e8;
             padding: 15px;
             border-radius: 8px;
             margin: 15px 0;
+            border-left: 4px solid #28a745;
         }
     </style>
 </head>
@@ -129,23 +130,23 @@ module.exports = async function (req, res) {
         <h1>📊 Icebreaker Delivery Tracker</h1>
         
         <div class="status success">
-            ✅ <strong>API Status:</strong> Working! Enhanced with Dolphin OCR for superior document parsing.
+            ✅ <strong>API Status:</strong> Working! Enhanced with Lightweight OCR for superior document parsing.
         </div>
         
         <div class="model-info">
-            <h4>🐬 ByteDance Dolphin OCR Integration</h4>
-            <p>Now powered by advanced document understanding AI that excels at:</p>
+            <h4>🔍 Enhanced OCR Integration</h4>
+            <p>Now powered by intelligent document processing that excels at:</p>
             <ul>
                 <li>📄 Structured document parsing (tables, forms)</li>
                 <li>🔤 Arabic text recognition with high accuracy</li>
-                <li>📊 Natural reading order understanding</li>
-                <li>⚡ Parallel element processing for efficiency</li>
+                <li>🧠 Intelligent pattern matching and post-processing</li>
+                <li>⚡ Fast and lightweight processing optimized for Vercel</li>
             </ul>
         </div>
         
         <div class="tabs">
             <button class="tab active" onclick="switchTab('text')">💬 Text Input</button>
-            <button class="tab" onclick="switchTab('dolphin')">🐬 Dolphin OCR</button>
+            <button class="tab" onclick="switchTab('enhanced')">🔍 Enhanced OCR</button>
             <button class="tab" onclick="switchTab('compare')">📊 Compare</button>
         </div>
         
@@ -175,8 +176,8 @@ Example:
             </div>
         </div>
         
-        <!-- Dolphin OCR Tab -->
-        <div id="dolphin-tab" class="tab-content">
+        <!-- Enhanced OCR Tab -->
+        <div id="enhanced-tab" class="tab-content">
             <div class="grid">
                 <div>
                     <h3>📋 Upload Plan Image</h3>
@@ -185,8 +186,8 @@ Example:
                         <p>or</p>
                         <input type="file" id="planImageInput" accept="image/*" onchange="uploadPlanImage(this.files[0])">
                     </div>
-                    <button class="dolphin" onclick="document.getElementById('planImageInput').click()">
-                        🐬 Select Plan Image
+                    <button class="enhanced" onclick="document.getElementById('planImageInput').click()">
+                        🔍 Select Plan Image
                     </button>
                 </div>
                 
@@ -197,14 +198,14 @@ Example:
                         <p>or</p>
                         <input type="file" id="deliveryImageInput" accept="image/*" onchange="uploadDeliveryImage(this.files[0])">
                     </div>
-                    <button class="dolphin" onclick="document.getElementById('deliveryImageInput').click()">
-                        🐬 Select Delivery Image
+                    <button class="enhanced" onclick="document.getElementById('deliveryImageInput').click()">
+                        🔍 Select Delivery Image
                     </button>
                 </div>
             </div>
             
             <div style="text-align: center; margin-top: 20px;">
-                <button class="dolphin" onclick="processWithDolphin()">🐬 Process with Dolphin OCR</button>
+                <button class="enhanced" onclick="processWithEnhancedOCR()">🔍 Process with Enhanced OCR</button>
             </div>
         </div>
         
@@ -262,14 +263,13 @@ Example:
             if (!file) return;
             
             const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = '<p>🐬 Processing plan image with Dolphin OCR...</p>';
+            resultDiv.innerHTML = '<p>🔍 Processing plan image with Enhanced OCR...</p>';
             
             try {
                 const formData = new FormData();
                 formData.append('image', file);
-                formData.append('taskType', 'plan');
                 
-                const response = await fetch('/api/dolphin-ocr', {
+                const response = await fetch('/api/dolphin-ocr?task=plan', {
                     method: 'POST',
                     body: formData
                 });
@@ -278,17 +278,18 @@ Example:
                 
                 if (data.success) {
                     planData = data;
-                    document.getElementById('planText').value = data.rawText;
+                    document.getElementById('planText').value = data.data.extractedText || data.extractedText || '';
                     
                     resultDiv.innerHTML = \`
                         <div class="status success">
-                            <h4>🐬 Plan Image Processed Successfully</h4>
-                            <p><strong>Clients detected:</strong> \${data.validation.clientCount}</p>
-                            <p><strong>Confidence:</strong> \${data.validation.confidence}</p>
-                            <p><strong>Has Arabic text:</strong> \${data.validation.hasArabicText ? '✅' : '❌'}</p>
+                            <h4>🔍 Plan Image Processed Successfully</h4>
+                            <p><strong>Clients detected:</strong> \${data.clients?.length || 0}</p>
+                            <p><strong>Confidence:</strong> \${data.confidence || 'medium'}</p>
+                            <p><strong>Validation:</strong> \${data.isValid ? '✅ Valid' : '⚠️ Check required'}</p>
+                            \${data.issues?.length > 0 ? \`<p><strong>Issues:</strong> \${data.issues.join(', ')}</p>\` : ''}
                             <details>
                                 <summary>View extracted text</summary>
-                                <pre style="white-space: pre-wrap;">\${data.rawText}</pre>
+                                <pre style="white-space: pre-wrap;">\${data.data?.extractedText || data.extractedText || 'No text extracted'}</pre>
                             </details>
                         </div>
                     \`;
@@ -314,14 +315,13 @@ Example:
             if (!file) return;
             
             const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = '<p>🐬 Processing delivery image with Dolphin OCR...</p>';
+            resultDiv.innerHTML = '<p>🔍 Processing delivery image with Enhanced OCR...</p>';
             
             try {
                 const formData = new FormData();
                 formData.append('image', file);
-                formData.append('taskType', 'delivery');
                 
-                const response = await fetch('/api/dolphin-ocr', {
+                const response = await fetch('/api/dolphin-ocr?task=delivery', {
                     method: 'POST',
                     body: formData
                 });
@@ -330,17 +330,18 @@ Example:
                 
                 if (data.success) {
                     deliveryData = data;
-                    document.getElementById('deliveryText').value = data.rawText;
+                    document.getElementById('deliveryText').value = data.data.extractedText || data.extractedText || '';
                     
                     resultDiv.innerHTML = \`
                         <div class="status success">
-                            <h4>🐬 Delivery Image Processed Successfully</h4>
-                            <p><strong>Clients detected:</strong> \${data.validation.clientCount}</p>
-                            <p><strong>Confidence:</strong> \${data.validation.confidence}</p>
-                            <p><strong>Has Arabic text:</strong> \${data.validation.hasArabicText ? '✅' : '❌'}</p>
+                            <h4>🔍 Delivery Image Processed Successfully</h4>
+                            <p><strong>Clients detected:</strong> \${data.clients?.length || 0}</p>
+                            <p><strong>Confidence:</strong> \${data.confidence || 'medium'}</p>
+                            <p><strong>Validation:</strong> \${data.isValid ? '✅ Valid' : '⚠️ Check required'}</p>
+                            \${data.issues?.length > 0 ? \`<p><strong>Issues:</strong> \${data.issues.join(', ')}</p>\` : ''}
                             <details>
                                 <summary>View extracted text</summary>
-                                <pre style="white-space: pre-wrap;">\${data.rawText}</pre>
+                                <pre style="white-space: pre-wrap;">\${data.data?.extractedText || data.extractedText || 'No text extracted'}</pre>
                             </details>
                         </div>
                     \`;
@@ -362,12 +363,12 @@ Example:
             }
         }
         
-        async function processWithDolphin() {
+        async function processWithEnhancedOCR() {
             if (!planData && !deliveryData) {
                 document.getElementById('result').innerHTML = \`
                     <div class="status warning">
                         <h4>⚠️ No Images Uploaded</h4>
-                        <p>Please upload at least one image using Dolphin OCR first.</p>
+                        <p>Please upload at least one image using Enhanced OCR first.</p>
                     </div>
                 \`;
                 return;
@@ -385,7 +386,7 @@ Example:
                 resultDiv.innerHTML = \`
                     <div class="status error">
                         <h4>❌ Missing Data</h4>
-                        <p>Please enter both plan text and delivery text, or use Dolphin OCR to extract from images.</p>
+                        <p>Please enter both plan text and delivery text, or use Enhanced OCR to extract from images.</p>
                     </div>
                 \`;
                 return;
@@ -409,7 +410,7 @@ Example:
                     resultDiv.innerHTML = \`
                         <div class="status success">
                             <h4>✅ Comparison Complete</h4>
-                            \${data.metadata?.server === 'vercel-serverless' ? '<p><em>🐬 Enhanced with Dolphin OCR processing</em></p>' : ''}
+                            \${data.metadata?.server === 'vercel-serverless' ? '<p><em>🔍 Enhanced with intelligent OCR processing</em></p>' : ''}
                             <pre style="white-space: pre-wrap; font-family: inherit;">\${data.comparison}</pre>
                         </div>
                     \`;

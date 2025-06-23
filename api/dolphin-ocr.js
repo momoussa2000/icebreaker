@@ -23,7 +23,7 @@ const upload = multer({
 /**
  * Enhanced OCR API endpoint for parsing document images
  */
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -137,7 +137,7 @@ export default async function handler(req, res) {
 /**
  * Export configuration for Vercel
  */
-export const config = {
+module.exports.config = {
   api: {
     bodyParser: false, // Let multer handle body parsing
   },
