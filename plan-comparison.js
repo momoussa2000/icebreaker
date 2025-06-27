@@ -409,6 +409,123 @@ async function compareDeliveryWithPlan(deliveryText, planText, masterClientList)
   }
 }
 
+// Smart name matching algorithm for plan vs delivery comparison
+function calculateNameMatchScore(plannedName, deliveredName) {
+  if (!plannedName || !deliveredName) return 0;
+  
+  // Clean both names (remove spaces, special chars, keep Arabic and English)
+  const cleanPlanned = plannedName.toLowerCase().replace(/\s+/g, '').replace(/[^\w\u0600-\u06FF]/g, '');
+  const cleanDelivered = deliveredName.toLowerCase().replace(/\s+/g, '').replace(/[^\w\u0600-\u06FF]/g, '');
+  
+  console.log(`🔍 Matching: "${plannedName}" vs "${deliveredName}"`);
+  console.log(`   Clean: "${cleanPlanned}" vs "${cleanDelivered}"`);
+  
+  // Exact match
+  if (cleanPlanned === cleanDelivered) {
+    console.log(`   ✅ Exact match (100%)`);
+    return 100;
+  }
+  
+  // One contains the other (very high confidence)
+  if (cleanPlanned.includes(cleanDelivered) || cleanDelivered.includes(cleanPlanned)) {
+    console.log(`   ✅ Contains match (90%)`);
+    return 90;
+  }
+  
+  // Strong prefix match (first 4+ characters)
+  const minLength = Math.min(cleanPlanned.length, cleanDelivered.length);
+  if (minLength >= 4) {
+    const prefixLength = Math.min(6, minLength);
+    if (cleanPlanned.substring(0, prefixLength) === cleanDelivered.substring(0, prefixLength)) {
+      console.log(`   ✅ Strong prefix match (80%)`);
+      return 80;
+    }
+  }
+  
+  // Medium prefix match (first 3 characters)
+  if (minLength >= 3) {
+    if (cleanPlanned.substring(0, 3) === cleanDelivered.substring(0, 3)) {
+      console.log(`   ✅ Prefix match (70%)`);
+      return 70;
+    }
+  }
+  
+  // Fuzzy match - check if most characters are similar
+  const similarity = calculateStringSimilarity(cleanPlanned, cleanDelivered);
+  if (similarity >= 0.7) {
+    console.log(`   ✅ Similarity match (${Math.round(similarity * 100)}%)`);
+    return Math.round(similarity * 100);
+  }
+  
+  console.log(`   ❌ No match (0%)`);
+  return 0;
+}
+
+// Calculate string similarity using simple character overlap
+function calculateStringSimilarity(str1, str2) {
+  if (str1.length === 0 || str2.length === 0) return 0;
+  
+  const longer = str1.length > str2.length ? str1 : str2;
+  const shorter = str1.length > str2.length ? str2 : str1;
+  
+  let matches = 0;
+  for (let i = 0; i < shorter.length; i++) {
+    if (longer.includes(shorter[i])) matches++;
+  }
+  
+  return matches / longer.length;
+}
+
+// Smart client matching ONLY for freezer status - ignores location data
+function findClientForFreezerStatus(masterClientList, plannedClientName, deliveredClientName) {
+  const searchName = plannedClientName || deliveredClientName;
+  if (!searchName) return null;
+  
+  const searchNameClean = searchName.toLowerCase().replace(/\s+/g, '').replace(/[^\w\u0600-\u06FF]/g, '');
+  
+  console.log(`🔍 Searching master database for freezer status: "${searchName}"`);
+  
+  // Try exact match first
+  let masterClient = masterClientList.find(mc => {
+    const masterNameClean = mc.name.toLowerCase().replace(/\s+/g, '').replace(/[^\w\u0600-\u06FF]/g, '');
+    return masterNameClean === searchNameClean;
+  });
+  
+  if (masterClient) {
+    console.log(`✅ Exact match found: "${masterClient.name}" - Freezer: ${masterClient.isFreezr}`);
+    return masterClient;
+  }
+  
+  // Try partial match (contains)
+  masterClient = masterClientList.find(mc => {
+    const masterNameClean = mc.name.toLowerCase().replace(/\s+/g, '').replace(/[^\w\u0600-\u06FF]/g, '');
+    return masterNameClean.includes(searchNameClean) || searchNameClean.includes(masterNameClean);
+  });
+  
+  if (masterClient) {
+    console.log(`✅ Partial match found: "${masterClient.name}" - Freezer: ${masterClient.isFreezr}`);
+    return masterClient;
+  }
+  
+  // Try fuzzy match (first 3-5 characters)
+  masterClient = masterClientList.find(mc => {
+    const masterNameClean = mc.name.toLowerCase().replace(/\s+/g, '').replace(/[^\w\u0600-\u06FF]/g, '');
+    const minLength = Math.min(4, Math.min(masterNameClean.length, searchNameClean.length));
+    if (minLength >= 3) {
+      return masterNameClean.substring(0, minLength) === searchNameClean.substring(0, minLength);
+    }
+    return false;
+  });
+  
+  if (masterClient) {
+    console.log(`✅ Fuzzy match found: "${masterClient.name}" - Freezer: ${masterClient.isFreezr}`);
+    return masterClient;
+  }
+  
+  console.log(`❌ No match found in master database for: "${searchName}"`);
+  return null;
+}
+
 // Extract the matching logic into a separate function for reuse
 async function performPlanDeliveryMatching(plan, fulfilledDeliveries, masterClientList) {
   const plannedClients = plan.clients;
@@ -417,23 +534,17 @@ async function performPlanDeliveryMatching(plan, fulfilledDeliveries, masterClie
   const comparisonResults = [];
   const matchedDeliveries = new Set();
   
-  // Match planned clients to deliveries
+  // Match planned clients to deliveries using smart fuzzy matching
   for (const planned of plannedClients) {
     let bestMatch = null;
     let bestScore = 0;
     let matchIndex = -1;
     
-    // Find best matching delivery
+    // Find best matching delivery using improved fuzzy logic
     fulfilledDeliveries.forEach((fulfilled, index) => {
       if (matchedDeliveries.has(index)) return;
       
-      const plannedName = planned.name.toLowerCase().replace(/\s+/g, '');
-      const fulfilledName = fulfilled.clientName.toLowerCase().replace(/\s+/g, '');
-      
-      let score = 0;
-      if (plannedName === fulfilledName) score = 100;
-      else if (plannedName.includes(fulfilledName) || fulfilledName.includes(plannedName)) score = 80;
-      else if (plannedName.substring(0, 3) === fulfilledName.substring(0, 3)) score = 60;
+      const score = calculateNameMatchScore(planned.name, fulfilled.clientName);
       
       if (score > bestScore) {
         bestScore = score;
@@ -442,15 +553,10 @@ async function performPlanDeliveryMatching(plan, fulfilledDeliveries, masterClie
       }
     });
     
-    // Find client in master database
-    const masterClient = masterClientList.find(mc => {
-      const mName = mc.name.toLowerCase().replace(/\s+/g, '');
-      const pName = planned.name.toLowerCase().replace(/\s+/g, '');
-      return mName.includes(pName) || pName.includes(mName) || 
-             mName.substring(0, Math.min(mName.length, pName.length)) === pName.substring(0, Math.min(mName.length, pName.length));
-    });
+    // Find client in master database ONLY for freezer status
+    const masterClient = findClientForFreezerStatus(masterClientList, planned.name, bestMatch ? bestMatch.clientName : null);
     
-    if (bestMatch && bestScore >= 60) {
+    if (bestMatch && bestScore >= 70) { // Raised threshold due to improved scoring
       // Client was delivered
       matchedDeliveries.add(matchIndex);
       
@@ -458,7 +564,7 @@ async function performPlanDeliveryMatching(plan, fulfilledDeliveries, masterClie
         clientName: planned.name,
         deliveryStatus: 'Delivered',
         hasFreezr: masterClient ? masterClient.isFreezr : false,
-        zone: masterClient ? masterClient.location : 'Unknown',
+        zone: 'From Plan', // Zone info comes from plan, not master database
         planned: {
           '3KG': planned.products['3KG'],
           '5KG': planned.products['5KG'],
@@ -489,7 +595,7 @@ async function performPlanDeliveryMatching(plan, fulfilledDeliveries, masterClie
         clientName: planned.name,
         deliveryStatus: 'Missed',
         hasFreezr: masterClient ? masterClient.isFreezr : false,
-        zone: masterClient ? masterClient.location : 'Unknown',
+        zone: 'From Plan', // Zone info comes from plan, not master database
         planned: {
           '3KG': planned.products['3KG'],
           '5KG': planned.products['5KG'],
@@ -518,18 +624,14 @@ async function performPlanDeliveryMatching(plan, fulfilledDeliveries, masterClie
   // Process unplanned deliveries
   fulfilledDeliveries.forEach((fulfilled, index) => {
     if (!matchedDeliveries.has(index)) {
-      // Find client in master database
-      const masterClient = masterClientList.find(mc => {
-        const mName = mc.name.toLowerCase().replace(/\s+/g, '');
-        const fName = fulfilled.clientName.toLowerCase().replace(/\s+/g, '');
-        return mName.includes(fName) || fName.includes(mName);
-      });
+      // Find client in master database ONLY for freezer status
+      const masterClient = findClientForFreezerStatus(masterClientList, null, fulfilled.clientName);
       
       comparisonResults.push({
         clientName: fulfilled.clientName,
         deliveryStatus: 'Unplanned',
         hasFreezr: masterClient ? masterClient.isFreezr : false,
-        zone: masterClient ? masterClient.location : 'Unknown',
+        zone: 'Not In Plan', // This was unplanned delivery
         planned: {
           '3KG': 0,
           '5KG': 0,
