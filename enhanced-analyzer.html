@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Enhanced Icebreaker Plan vs Delivery Analyzer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+        }
+        .enhanced-section {
+            border-color: #007bff;
+            background-color: #f8f9ff;
+        }
+        input[type="file"], textarea {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 90%;
+        }
+        textarea {
+            height: 150px;
+            resize: vertical;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .enhanced-btn {
+            background-color: #28a745;
+        }
+        .enhanced-btn:hover {
+            background-color: #1e7e34;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            color: #666;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .metrics {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Enhanced Icebreaker Plan vs Delivery Analyzer</h1>
+        
+        <div class="section enhanced-section">
+            <h3>🎯 Enhanced Analysis - Upload Both Images</h3>
+            <p>Upload your distribution plan and delivery report images for detailed AI comparison</p>
+            
+            <form id="enhancedImageForm" enctype="multipart/form-data">
+                <div class="grid">
+                    <div>
+                        <h4>📋 Distribution Plan Image</h4>
+                        <input type="file" name="planImage" accept="image/*" required>
+                    </div>
+                    <div>
+                        <h4>📦 Delivery Report Image</h4>
+                        <input type="file" name="deliveryImage" accept="image/*" required>
+                    </div>
+                </div>
+                <button type="submit" class="enhanced-btn">🚀 Analyze Both Images</button>
+            </form>
+        </div>
+
+        <div class="section">
+            <h3>📝 Enhanced Analysis - Text Input</h3>
+            <p>Paste your plan and delivery text for detailed comparison</p>
+            
+            <form id="enhancedTextForm">
+                <div class="grid">
+                    <div>
+                        <h4>📋 Distribution Plan Text</h4>
+                        <textarea name="planText" placeholder="Paste distribution plan here..." required></textarea>
+                    </div>
+                    <div>
+                        <h4>📦 Delivery Report Text</h4>
+                        <textarea name="deliveryText" placeholder="Paste actual delivery report here..." required></textarea>
+                    </div>
+                </div>
+                <button type="submit" class="enhanced-btn">🎯 Analyze Text</button>
+            </form>
+        </div>
+        
+        <div class="loading" id="loading">
+            <p>🔄 Processing with enhanced AI analysis...</p>
+        </div>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // Enhanced image analysis form
+        document.getElementById('enhancedImageForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const loadingEl = document.getElementById('loading');
+            const resultEl = document.getElementById('result');
+            
+            // Validate both files are selected
+            if (!formData.get('planImage') || !formData.get('deliveryImage')) {
+                showError('Please select both plan and delivery images');
+                return;
+            }
+            
+            loadingEl.style.display = 'block';
+            resultEl.innerHTML = '';
+            
+            try {
+                const response = await fetch('/analyze-plan-delivery-images', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                loadingEl.style.display = 'none';
+                
+                if (data.success) {
+                    showResult(data, 'Enhanced Image Analysis');
+                } else {
+                    showError(data.error || 'Analysis failed', data);
+                }
+            } catch (error) {
+                loadingEl.style.display = 'none';
+                showError('Network error: ' + error.message);
+            }
+        });
+
+        // Enhanced text analysis form
+        document.getElementById('enhancedTextForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const planText = e.target.planText.value.trim();
+            const deliveryText = e.target.deliveryText.value.trim();
+            
+            if (!planText || !deliveryText) {
+                showError('Please provide both plan and delivery text');
+                return;
+            }
+            
+            const loadingEl = document.getElementById('loading');
+            const resultEl = document.getElementById('result');
+            
+            loadingEl.style.display = 'block';
+            resultEl.innerHTML = '';
+            
+            try {
+                const response = await fetch('/analyze-plan-delivery-text', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        planText: planText,
+                        deliveryText: deliveryText
+                    })
+                });
+                
+                const data = await response.json();
+                loadingEl.style.display = 'none';
+                
+                if (data.success) {
+                    showResult(data, 'Enhanced Text Analysis');
+                } else {
+                    showError(data.error || 'Analysis failed', data);
+                }
+            } catch (error) {
+                loadingEl.style.display = 'none';
+                showError('Network error: ' + error.message);
+            }
+        });
+
+        function showResult(data, title) {
+            const resultEl = document.getElementById('result');
+            
+            let html = `
+                <div class="result">
+                    <h3>✅ ${title} Complete</h3>
+                    <p><strong>Analysis Type:</strong> ${data.analysisType || 'Unknown'}</p>
+                    <p><strong>Timestamp:</strong> ${new Date(data.timestamp).toLocaleString()}</p>
+                    
+                    ${data.fallbackReason ? `<p style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;"><strong>⚠️ Fallback Used:</strong> ${data.fallbackReason}</p>` : ''}
+                    
+                    ${data.metrics ? `
+                        <div class="metrics">
+                            <h4>📊 Analysis Metrics</h4>
+                            <p><strong>Total Planned Clients:</strong> ${data.metrics.totalPlannedClients}</p>
+                            <p><strong>Successfully Delivered:</strong> ${data.metrics.successfullyDelivered}</p>
+                            <p><strong>Missed Deliveries:</strong> ${data.metrics.missedDeliveries}</p>
+                            <p><strong>Unplanned Deliveries:</strong> ${data.metrics.unplannedDeliveries}</p>
+                            <p><strong>Fulfillment Rate:</strong> ${data.metrics.fulfillmentRate}%</p>
+                        </div>
+                    ` : ''}
+                    
+                    <div style="margin-top: 20px;">
+                        <h4>📋 Detailed Analysis</h4>
+                        <pre>${data.analysis}</pre>
+                    </div>
+                    
+                    ${data.ocr ? `
+                        <details style="margin-top: 20px;">
+                            <summary>📸 OCR Extracted Texts</summary>
+                            <div style="margin-top: 10px;">
+                                <h5>📋 Plan Text</h5>
+                                <pre style="max-height: 200px; overflow-y: auto;">${data.ocr.planText}</pre>
+                                <h5>📦 Delivery Text</h5>
+                                <pre style="max-height: 200px; overflow-y: auto;">${data.ocr.deliveryText}</pre>
+                            </div>
+                        </details>
+                    ` : ''}
+                </div>
+            `;
+            
+            resultEl.innerHTML = html;
+        }
+
+        function showError(message, data = null) {
+            const resultEl = document.getElementById('result');
+            
+            let html = `
+                <div class="result error">
+                    <h3>❌ Analysis Failed</h3>
+                    <p>${message}</p>
+            `;
+            
+            if (data && data.stage) {
+                html += `<p><strong>Stage:</strong> ${data.stage}</p>`;
+            }
+            
+            if (data && data.planText) {
+                html += `
+                    <details>
+                        <summary>📋 Plan Text (for review)</summary>
+                        <pre>${data.planText}</pre>
+                    </details>
+                `;
+            }
+            
+            if (data && data.deliveryText) {
+                html += `
+                    <details>
+                        <summary>📦 Delivery Text (for review)</summary>
+                        <pre>${data.deliveryText}</pre>
+                    </details>
+                `;
+            }
+            
+            html += '</div>';
+            resultEl.innerHTML = html;
+        }
+    </script>
+</body>
+</html> 

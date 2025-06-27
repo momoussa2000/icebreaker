@@ -318,93 +318,133 @@ function generateComparisonReport(comparisonResults, planDate, deliveryDate) {
   return report;
 }
 
-// NEW function that processes plan and delivery together (no server storage needed)
+// Enhanced function that uses new detailed AI analysis for plan vs delivery comparison
 async function compareDeliveryWithPlan(deliveryText, planText, masterClientList) {
   try {
-    console.log('🚀 Starting DIRECT plan + delivery comparison (no server storage)');
+    console.log('🚀 Starting ENHANCED plan + delivery comparison with detailed AI analysis');
     console.log('📋 Plan text length:', planText.length);
     console.log('📱 Delivery text length:', deliveryText.length);
     
-    // STEP 1: Parse the plan text directly
-    const planClients = [];
-    const lines = planText.split('\n');
+    // First try the new enhanced AI analysis
+    const { analyzePlanVsDeliveryDetailed } = require('./analysis');
     
-    for (let line of lines) {
-      line = line.trim();
-      if (!line || line.length < 3) continue;
+    try {
+      console.log('🤖 Attempting enhanced AI analysis...');
+      const enhancedResult = await analyzePlanVsDeliveryDetailed(planText, deliveryText, masterClientList);
       
-      // Skip header rows and totals rows
-      if (line.includes('اسم العميل') ||
-          line.includes('المجموع') ||
-          line.includes('Client Name') ||
-          line.includes('Total') ||
-          line.includes('3 KG') ||
-          line.includes('5 KG') ||
-          line.includes('V00') ||
-          line.includes('Cup') ||
-          line.includes('Comment')) {
-        console.log('⏭️ Skipping header/total row:', line);
-        continue;
-      }
-      
-      // Parse tab-separated values (Excel copy-paste format)
-      const parts = line.split('\t').map(p => p.trim()).filter(p => p !== '');
-      if (parts.length >= 2) {
-        const clientName = parts[0];
-        const products = {
-          '3KG': parseInt(parts[1]) || 0,
-          '5KG': parseInt(parts[2]) || 0,
-          'V00': parseInt(parts[3]) || 0,
-          'Cup': parseInt(parts[4]) || 0
-        };
+      if (enhancedResult.success) {
+        console.log('✅ Enhanced AI analysis successful');
+        console.log('📊 Extracted metrics:', enhancedResult.metrics);
         
-        const totalQty = Object.values(products).reduce((sum, qty) => sum + qty, 0);
-        if (clientName.length > 1 && totalQty > 0) {
-          console.log('✅ Added client:', clientName, 'with products:', products);
-          planClients.push({
-            name: clientName,
-            products: products,
-            totalQuantity: totalQty
-          });
+        return {
+          success: true,
+          comparison: enhancedResult.analysis,
+          metrics: enhancedResult.metrics,
+          timestamp: enhancedResult.timestamp,
+          analysisType: 'enhanced_ai_detailed',
+          planLength: planText.length,
+          deliveryLength: deliveryText.length
+        };
+      } else {
+        console.log('⚠️ Enhanced AI analysis failed, falling back to legacy parsing');
+        throw new Error('Enhanced analysis failed: ' + enhancedResult.error);
+      }
+    } catch (aiError) {
+      console.log('⚠️ Enhanced AI analysis error, falling back to legacy method:', aiError.message);
+      
+      // Fallback to legacy parsing and matching
+      console.log('🔄 Using legacy plan parsing + delivery matching...');
+      
+      // STEP 1: Parse the plan text directly
+      const planClients = [];
+      const lines = planText.split('\n');
+      
+      for (let line of lines) {
+        line = line.trim();
+        if (!line || line.length < 3) continue;
+        
+        // Skip header rows and totals rows
+        if (line.includes('اسم العميل') ||
+            line.includes('المجموع') ||
+            line.includes('Client Name') ||
+            line.includes('Total') ||
+            line.includes('3 KG') ||
+            line.includes('5 KG') ||
+            line.includes('V00') ||
+            line.includes('Cup') ||
+            line.includes('Comment')) {
+          console.log('⏭️ Skipping header/total row:', line);
+          continue;
+        }
+        
+        // Parse tab-separated values (Excel copy-paste format)
+        const parts = line.split('\t').map(p => p.trim()).filter(p => p !== '');
+        if (parts.length >= 2) {
+          const clientName = parts[0];
+          const products = {
+            '3KG': parseInt(parts[1]) || 0,
+            '5KG': parseInt(parts[2]) || 0,
+            'V00': parseInt(parts[3]) || 0,
+            'Cup': parseInt(parts[4]) || 0
+          };
+          
+          const totalQty = Object.values(products).reduce((sum, qty) => sum + qty, 0);
+          if (clientName.length > 1 && totalQty > 0) {
+            console.log('✅ Added client:', clientName, 'with products:', products);
+            planClients.push({
+              name: clientName,
+              products: products,
+              totalQuantity: totalQty
+            });
+          }
         }
       }
-    }
-    
-    console.log('📋 STEP 1 Complete: Parsed', planClients.length, 'planned clients');
-    
-    if (planClients.length === 0) {
-      return {
-        success: false,
-        error: 'No valid clients found in the plan text'
+      
+      console.log('📋 STEP 1 Complete: Parsed', planClients.length, 'planned clients');
+      
+      if (planClients.length === 0) {
+        return {
+          success: false,
+          error: 'No valid clients found in the plan text'
+        };
+      }
+      
+      // Create a mock plan object
+      const plan = {
+        id: Date.now(),
+        date: new Date().toDateString(),
+        clients: planClients,
+        clientCount: planClients.length
       };
+      
+      // STEP 2: Parse delivery report (reuse existing function)
+      const fulfilledDeliveries = parseDeliveryReport(deliveryText);
+      
+      if (fulfilledDeliveries.length === 0) {
+        return {
+          success: false,
+          error: 'No valid deliveries found in the delivery text'
+        };
+      }
+      
+      // STEP 3: Match planned to delivered using existing logic
+      const legacyResult = await performPlanDeliveryMatching(plan, fulfilledDeliveries, masterClientList);
+      
+      // Add fallback flag to the result
+      if (legacyResult.success) {
+        legacyResult.analysisType = 'legacy_fallback';
+        legacyResult.fallbackReason = aiError.message;
+      }
+      
+      return legacyResult;
     }
-    
-    // Create a mock plan object
-    const plan = {
-      id: Date.now(),
-      date: new Date().toDateString(),
-      clients: planClients,
-      clientCount: planClients.length
-    };
-    
-    // STEP 2: Parse delivery report (reuse existing function)
-    const fulfilledDeliveries = parseDeliveryReport(deliveryText);
-    
-    if (fulfilledDeliveries.length === 0) {
-      return {
-        success: false,
-        error: 'No valid deliveries found in the delivery text'
-      };
-    }
-    
-    // STEP 3: Match planned to delivered using existing logic
-    return await performPlanDeliveryMatching(plan, fulfilledDeliveries, masterClientList);
     
   } catch (error) {
-    console.error('Error in direct plan+delivery comparison:', error);
+    console.error('Error in enhanced plan+delivery comparison:', error);
     return {
       success: false,
-      error: 'Failed to compare: ' + error.message
+      error: 'Failed to compare: ' + error.message,
+      analysisType: 'error'
     };
   }
 }
