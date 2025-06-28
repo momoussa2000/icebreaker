@@ -1,5 +1,5 @@
 const { loadClientList } = require('../clients');
-const { compareDeliveryWithPlan } = require('../plan-comparison');
+const { analyzePlanVsDeliveryDetailed } = require('../analysis');
 
 module.exports = async function (req, res) {
   // CORS headers
@@ -44,8 +44,8 @@ module.exports = async function (req, res) {
     const masterClientList = loadClientList();
     console.log(`📊 Loaded ${masterClientList.length} clients from database`);
 
-    // Perform comparison
-    const result = await compareDeliveryWithPlan(deliveryText, planText, masterClientList);
+    // Perform enhanced analysis
+    const result = await analyzePlanVsDeliveryDetailed(planText, deliveryText, masterClientList);
     
     console.log('✅ Comparison completed successfully');
 
